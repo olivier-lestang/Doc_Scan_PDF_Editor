@@ -520,8 +520,13 @@ def _on_keyboard(
     """Handle shortcuts: Ctrl+O/E/Z/0/+/- and PageUp/PageDown navigation.
 
     Gère les raccourcis : Ctrl+O/E/Z/0/+/- et navigation PgUp/PgDn.
+    Shortcuts are ignored while typing in a text field (e.g. the inline
+    text editor), so Space and letters keep their normal meaning there.
     """
     state.ctrl_pressed = bool(event.ctrl or event.meta)
+    focused = getattr(event, "control", None)
+    if isinstance(focused, ft.TextField):
+        return
     key = (event.key or "").lower()
     if state.ctrl_pressed:
         if key in ("o",):
