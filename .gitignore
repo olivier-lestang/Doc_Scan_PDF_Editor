@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Tooling
+uv.lock.orig
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local settings / user data (never commit)
+settings.json

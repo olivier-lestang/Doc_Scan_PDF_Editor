@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "vibe/**", "feat/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-type-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Format check
+        run: uv run ruff format --check
+
+      - name: Lint
+        run: uv run ruff check
+
+      - name: Type check (strict)
+        run: uv run mypy
+
+      - name: Tests
+        run: uv run pytest --cov=docscanner --cov-report=term-missing
