@@ -46,6 +46,85 @@ Couleurs de surlignage (marqueur) proposées dans le ruban.
 """
 
 
+SWATCH_SIZE = 20
+"""Size (px) of one color swatch in the palette popups.
+
+Taille (px) d'une pastille de couleur dans les palettes.
+"""
+
+SWATCHES_PER_ROW = 5
+"""Number of swatches per row in the palette popups.
+
+Nombre de pastilles par ligne dans les palettes.
+"""
+
+
+def _color_palette(
+    state: AppState,
+    refresh: Callable[[], None],
+    attr: str,
+    colors: dict[str, str],
+    allow_none: bool = False,
+) -> ft.PopupMenuButton:
+    """Build a color-palette popup button (swatches, not hex codes).
+
+    Construit un bouton ouvrant une palette de couleurs (pastilles, pas de
+    codes hex). Cliquer sur une pastille règle l'attribut de style `attr`.
+    """
+    swatches: list[ft.Control] = []
+    if allow_none:
+        swatches.append(
+            ft.Container(
+                content=ft.Text("∅", size=12),
+                width=SWATCH_SIZE,
+                height=SWATCH_SIZE,
+                border=ft.border.all(1, "#B0BEC5"),
+                tooltip=state.t("ribbon.none"),
+                on_click=lambda _e: _set_style(state, refresh, **{attr: None}),
+            )
+        )
+    for hex_code, label in colors.items():
+        swatches.append(
+            ft.Container(
+                bgcolor=hex_code,
+                width=SWATCH_SIZE,
+                height=SWATCH_SIZE,
+                border=ft.border.all(1, "#90A4AE"),
+                border_radius=4,
+                tooltip=f"{label} {hex_code}",
+                on_click=lambda _e, code=hex_code: _set_style(
+                    state, refresh, **{attr: code}
+                ),
+            )
+        )
+    rows: list[ft.Control] = []
+    for i in range(0, len(swatches), SWATCHES_PER_ROW):
+        rows.append(ft.Row(controls=swatches[i : i + SWATCHES_PER_ROW], spacing=4))
+    grid = ft.Container(
+        content=ft.Column(controls=rows, spacing=4, tight=True), padding=6
+    )
+    current = getattr(state.text_style, attr) or ""
+    return ft.PopupMenuButton(
+        content=ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Container(
+                        bgcolor=current or "#FFFFFF",
+                        width=SWATCH_SIZE,
+                        height=SWATCH_SIZE,
+                        border=ft.border.all(1, "#455A64"),
+                        border_radius=4,
+                    ),
+                    ft.Icon(ft.Icons.ARROW_DROP_DOWN),
+                ],
+                spacing=2,
+            ),
+            tooltip=current or state.t("ribbon.none"),
+        ),
+        items=[ft.PopupMenuItem(content=grid)],
+    )
+
+
 def _ribbon_group(caption: str, controls: list[ft.Control]) -> ft.Control:
     """Build one ribbon group: a small caption above a row of controls.
 
@@ -210,27 +289,9 @@ def build_ribbon(
                 selected=style.underline,
                 on_click=lambda _e: _toggle_style(state, refresh, "underline"),
             ),
-            ft.Dropdown(
-                width=100,
-                value=style.text_color,
-                options=[
-                    ft.dropdown.Option(value, key) for key, value in TEXT_COLORS.items()
-                ],
-                on_change=lambda e: _set_style(
-                    state, refresh, text_color=e.control.value
-                ),
-            ),
-            ft.Dropdown(
-                width=100,
-                value=style.highlight_color or "",
-                options=[ft.dropdown.Option("", state.t("ribbon.none"))]
-                + [
-                    ft.dropdown.Option(value, key)
-                    for key, value in HIGHLIGHT_COLORS.items()
-                ],
-                on_change=lambda e: _set_style(
-                    state, refresh, highlight_color=e.control.value or None
-                ),
+            _color_palette(state, refresh, "text_color", TEXT_COLORS),
+            _color_palette(
+                state, refresh, "highlight_color", HIGHLIGHT_COLORS, allow_none=True
             ),
         ],
     )
