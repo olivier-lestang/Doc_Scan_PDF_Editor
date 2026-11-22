@@ -306,7 +306,7 @@ def _on_tap(state: AppState, event: ft.TapEvent) -> None:
     page.update()
 
 
-def _on_pan_start(state: AppState, event: ft.PanStartEvent) -> None:
+def _on_pan_start(state: AppState, event: ft.DragStartEvent) -> None:
     """Remember the drag start point for rect/highlight tools.
 
     Mémorise le point de début de glisser pour les outils cadre/surlignage.
@@ -314,14 +314,14 @@ def _on_pan_start(state: AppState, event: ft.PanStartEvent) -> None:
     state._drag_start = (event.local_x, event.local_y)
 
 
-def _on_pan_update(state: AppState, event: ft.PanUpdateEvent) -> None:
+def _on_pan_update(state: AppState, event: ft.DragUpdateEvent) -> None:
     """Update the drag preview (no-op visual for now).
 
     Met à jour l'aperçu du glisser (visuel sans effet pour l'instant).
     """
 
 
-def _on_pan_end(state: AppState, event: ft.PanEndEvent) -> None:
+def _on_pan_end(state: AppState, event: ft.DragEndEvent) -> None:
     """Create a rect/highlight annotation from the drag gesture.
 
     Crée une annotation cadre/surlignage à partir du geste de glisser.
