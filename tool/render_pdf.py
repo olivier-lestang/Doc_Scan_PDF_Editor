@@ -4,7 +4,7 @@ Rend un fichier texte façon Markdown en un PDF A4 simple (via Pillow).
 
 Usage: uv run python tool/render_pdf.py <source.md> <destination.pdf>
 
-Usage : uv run python tool/render_pdf.py docs/UI_DESIGN_GUIDE.md docs/UI_DESIGN_GUIDE.pdf
+Usage : uv run python tool/render_pdf.py <source.md> <destination.pdf>
 """
 
 import sys
