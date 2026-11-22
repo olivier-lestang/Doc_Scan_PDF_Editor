@@ -86,7 +86,7 @@ CI (GitHub Actions) runs the same checks on every push/PR.
 ## Open the code in VS Code
 
 ```powershell
-cd "$HOME\projects\Doc_Scan_PDF_Editor"
+cd "$HOME\projects\Lestang_PDF_Editor"
 code .        # or File > Open Folder in VS Code
 ```
 

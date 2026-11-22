@@ -9,6 +9,19 @@ This file is also embedded in the app and shown on the "Release notes"
 
 ## [Unreleased]
 
+### Changed
+
+- Package renamed `docscanner` -> `lestang_pdf_editor` (src tree, imports,
+  pyproject name `lestang-pdf-editor`, CI coverage target, scripts, docs);
+  app user dirs renamed `DocScanPdfEditor` -> `LestangPdfEditor`.
+- All dependency versions are pinned exactly through the committed
+  `uv.lock` (`uv sync --frozen`); the Flutter runtime packages
+  (flet-cli/flet-desktop/flet-desktop-light/flet-web + fastapi) are in a
+  pinned `desktop` dependency group installed with
+  `uv sync --frozen --group desktop`. Scripts `run-dev.ps1` /
+  `build-installer.ps1` now use the frozen lock instead of loose installs,
+  which prevents client/server flet mismatches ("Unknown control: ...").
+
 ### Added
 
 - Initial project skeleton: Python 3.12 core, clean architecture
