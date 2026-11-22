@@ -1,10 +1,28 @@
 {
   "app_name": "Doc Scan PDF Editor",
+  "home": {
+    "open_file": "Open a PDF or image…",
+    "welcome": "Scan, enhance, OCR, annotate and export PDFs — 100% on your device."
+  },
+  "doc": {
+    "tool_text": "Add text",
+    "tool_rect": "Rectangle",
+    "tool_highlight": "Highlight",
+    "enhance": "Enhance",
+    "ocr": "OCR",
+    "export": "Export PDF",
+    "ocr_result": "OCR result",
+    "text_content": "Comment text",
+    "font_size": "Font size (pt)",
+    "add_text": "Add text",
+    "enhanced": "Image enhanced"
+  },
   "settings": {
     "title": "Settings",
     "scanning": "Scanning",
     "dpi": "Resolution (DPI)",
     "dpi_auto": "Automatic",
+    "ocr_languages": "OCR languages",
     "language": "Language",
     "legal": "Legal"
   },

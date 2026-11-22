@@ -49,6 +49,27 @@ French translation on the next line, lines wrapped at 88 columns, full type
 hints (`mypy --strict`), docstrings enforced by ruff (`D` rules), explicit
 verb-noun names.
 
+## Run the desktop app (Windows / macOS / Linux)
+
+```bash
+uv sync
+uv run flet run src/docscanner/app/main.py     # dev window
+# or via the console script:
+uv run docscanner
+```
+
+Features in the desktop v1: open PDF (any supported version) or image,
+page browser, one-tap enhance (contrast/brightness/denoise/sharpen),
+on-device OCR with user-selectable languages (fra/eng/spa/chi_sim + more)
+and automatic language detection, annotations (text with font size,
+rectangles, highlights) exported as native PDF annotations, settings
+(UI language en/fr/es/zh, DPI auto or manual) persisted across updates,
+and the Legal pages (notice, open-source licenses, release notes, privacy).
+
+Packaging into installers (Windows .exe, macOS .dmg, Linux AppImage/.deb)
+is documented in [docs/PACKAGING.md](docs/PACKAGING.md); CI builds them on
+`v*` tags (`.github/workflows/release.yml`).
+
 ## Development
 
 ```bash
@@ -57,9 +78,10 @@ uv run ruff format      # format
 uv run ruff check       # lint (docstrings, annotations, line length)
 uv run mypy             # strict type check
 uv run pytest           # unit tests
+uv run python tool/generate_licenses.py   # regenerate assets/licenses.json
 ```
 
-CI (GitHub Actions) runs the same four commands on every push/PR.
+CI (GitHub Actions) runs the same checks on every push/PR.
 
 ## Licensing
 

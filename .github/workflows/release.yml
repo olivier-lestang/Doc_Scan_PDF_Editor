@@ -1,0 +1,49 @@
+name: Release installers
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: windows-latest
+            target: windows-x64
+          - os: macos-latest
+            target: macos-universal2
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          ignore-nothing-to-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Regenerate license list
+        run: uv run python tool/generate_licenses.py
+
+      - name: Pack installer
+        run: >-
+          uv run flet pack src/docscanner/app/main.py
+          --name DocScanPDFEditor
+          --product_name "Doc Scan PDF Editor"
+          --company_name "Olivier Lestang"
+          --file_description "Offline document scanner and PDF editor"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.target }}
+          path: dist/*

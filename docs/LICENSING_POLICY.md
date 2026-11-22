@@ -10,6 +10,7 @@ Only permissive, royalty-free licenses are allowed:
 - MIT
 - BSD-2-Clause / BSD-3-Clause
 - Apache-2.0
+- MPL-2.0 (file-level copyleft, fine for linking; e.g. certifi)
 - ISC
 - Python Software Foundation License / HPND (e.g. Pillow)
 - SIL Open Font License 1.1 (fonts only)

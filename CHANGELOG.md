@@ -24,3 +24,18 @@ This file is also embedded in the app and shown on the "Release notes"
   languages (fra, eng, spa, chi_sim bundled; more packs later).
 - Feature flags: `account_enabled = false`, `cloud_ocr_enabled = false`.
 - MIT license, licensing policy, coding standards, ADRs.
+
+### Added (desktop v1, Flet UI)
+
+- Desktop app (Windows/macOS/Linux) with Flet: open PDF or image, page
+  browser, one-tap enhance (OpenCV CLAHE/denoise/sharpen), on-device OCR
+  (RapidOCR/ONNX) with user-selectable languages and langdetect language
+  detection, annotations (text with font size, rectangles, highlights)
+  exported as native PDF annotations via pypdf, PDF export.
+- Settings view: UI language (en/fr/es/zh), DPI (auto or manual),
+  OCR language selection; persisted as versioned JSON in the OS user
+  config dir (survives updates/reinstalls).
+- Legal pages: legal notice & copyright, generated open-source licenses
+  (`assets/licenses.json`), release notes from CHANGELOG.md, privacy.
+- Packaging docs (`docs/PACKAGING.md`) and a release workflow building
+  installers on `v*` tags.

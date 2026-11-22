@@ -1,10 +1,28 @@
 {
   "app_name": "Doc Scan PDF Editor",
+  "home": {
+    "open_file": "打开 PDF 或图片…",
+    "welcome": "扫描、增强、OCR、标注并导出 PDF —— 全程在您的设备本地完成。"
+  },
+  "doc": {
+    "tool_text": "添加文字",
+    "tool_rect": "矩形框",
+    "tool_highlight": "高亮",
+    "enhance": "一键增强",
+    "ocr": "OCR",
+    "export": "导出 PDF",
+    "ocr_result": "OCR 结果",
+    "text_content": "注释文字",
+    "font_size": "字号 (pt)",
+    "add_text": "添加文字",
+    "enhanced": "图像已增强"
+  },
   "settings": {
     "title": "设置",
     "scanning": "扫描",
     "dpi": "分辨率 (DPI)",
     "dpi_auto": "自动",
+    "ocr_languages": "OCR 语言",
     "language": "语言",
     "legal": "法律"
   },

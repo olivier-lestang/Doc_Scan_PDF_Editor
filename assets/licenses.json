@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "packages": [
+    {
+      "name": "anyio",
+      "version": "4.16.0",
+      "license": "MIT",
+      "copyright": ""
+    },
+    {
+      "name": "ast_serialize",
+      "version": "0.13.1",
+      "license": "MIT",
+      "copyright": ""
+    },
+    {
+      "name": "certifi",
+      "version": "2026.11.20",
+      "license": "Mozilla Public License 2.0 (MPL 2.0)",
+      "copyright": "Kenneth Reitz"
+    },
+    {
+      "name": "coverage",
+      "version": "7.17.4",
+      "license": "Apache-2.0",
+      "copyright": "Ned Batchelder and many others"
+    },
+    {
+      "name": "doc-scan-pdf-editor",
+      "version": "0.1.0",
+      "license": "MIT",
+      "copyright": "Olivier Lestang"
+    },
+    {
+      "name": "flatbuffers",
+      "version": "25.12.19",
+      "license": "Apache Software License",
+      "copyright": "Derek Bailey"
+    },
+    {
+      "name": "flet",
+      "version": "1.1.2",
+      "license": "Apache-2.0",
+      "copyright": ""
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0",
+      "license": "MIT License",
+      "copyright": "Nathaniel J. Smith"
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9",
+      "license": "BSD-3-Clause",
+      "copyright": ""
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1",
+      "license": "BSD License",
+      "copyright": ""
+    },
+    {
+      "name": "idna",
+      "version": "3.20",
+      "license": "BSD-3-Clause",
+      "copyright": ""
+    },
+    {
+      "name": "iniconfig",
+      "version": "2.3.1",
+      "license": "MIT",
+      "copyright": ""
+    },
+    {
+      "name": "langdetect",
+      "version": "1.0.9",
+      "license": "Apache Software License",
+      "copyright": "Michal Mimino Danilak"
+    },
+    {
+      "name": "librt",
+      "version": "0.17.0",
+      "license": "MIT",
+      "copyright": ""
+    },
+    {
+      "name": "msgpack",
+      "version": "1.2.4",
+      "license": "Apache-2.0",
+      "copyright": ""
+    },
+    {
+      "name": "mypy",
+      "version": "2.4.1",
+      "license": "MIT",
+      "copyright": ""
+    },
+    {
+      "name": "mypy_extensions",
+      "version": "1.2.0",
+      "license": "MIT",
+      "copyright": ""
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.5",
+      "license": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "copyright": "Travis E. Oliphant et al."
+    },
+    {
+      "name": "oauthlib",
+      "version": "4.0.1",
+      "license": "BSD-3-Clause",
+      "copyright": "The OAuthlib Community"
+    },
+    {
+      "name": "onnxruntime",
+      "version": "1.32.0",
+      "license": "MIT License",
+      "copyright": "Microsoft Corporation"
+    },
+    {
+      "name": "opencv-python",
+      "version": "5.1.0.95",
+      "license": "Apache Software License",
+      "copyright": ""
+    },
+    {
+      "name": "opencv-python-headless",
+      "version": "5.1.0.95",
+      "license": "Apache Software License",
+      "copyright": ""
+    },
+    {
+      "name": "packaging",
+      "version": "26.3",
+      "license": "Apache-2.0 OR BSD-2-Clause",
+      "copyright": ""
+    },
+    {
+      "name": "pathspec",
+      "version": "1.1.1",
+      "license": "Mozilla Public License 2.0 (MPL 2.0)",
+      "copyright": ""
+    },
+    {
+      "name": "pillow",
+      "version": "13.0.0",
+      "license": "MIT-CMU",
+      "copyright": ""
+    },
+    {
+      "name": "platformdirs",
+      "version": "4.14.8",
+      "license": "MIT",
+      "copyright": ""
+    },
+    {
+      "name": "pluggy",
+      "version": "1.7.0",
+      "license": "MIT License",
+      "copyright": "Holger Krekel"
+    },
+    {
+      "name": "protobuf",
+      "version": "7.36.2",
+      "license": "3-Clause BSD License",
+      "copyright": "protobuf@googlegroups.com"
+    },
+    {
+      "name": "pyclipper",
+      "version": "1.4.0",
+      "license": "OSI Approved",
+      "copyright": "Angus Johnson, Maxime Chalton, Lukas Treyer, Gregor Ratajc"
+    },
+    {
+      "name": "Pygments",
+      "version": "2.21.0",
+      "license": "BSD-2-Clause",
+      "copyright": ""
+    },
+    {
+      "name": "pypdf",
+      "version": "7.1.1",
+      "license": "BSD-3-Clause",
+      "copyright": ""
+    },
+    {
+      "name": "pypdfium2",
+      "version": "5.15.2",
+      "license": "BSD-3-Clause, Apache-2.0, dependency licenses",
+      "copyright": "pypdfium2-team"
+    },
+    {
+      "name": "pytest",
+      "version": "9.2.0",
+      "license": "MIT",
+      "copyright": "Brianna Laugher, Bruno Oliveira, Floris Bruynooghe, Freya Bruhin, Holger Krekel, Others (See AUTHORS), Ronny Pfannschmidt"
+    },
+    {
+      "name": "pytest-cov",
+      "version": "7.1.0",
+      "license": "MIT",
+      "copyright": ""
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.4",
+      "license": "MIT License",
+      "copyright": "Kirill Simonov"
+    },
+    {
+      "name": "rapidocr-onnxruntime",
+      "version": "1.4.4",
+      "license": "Apache-2.0",
+      "copyright": "SWHL"
+    },
+    {
+      "name": "repath",
+      "version": "0.9.0",
+      "license": "MIT License",
+      "copyright": "Nikolaos Coutsos"
+    },
+    {
+      "name": "ruff",
+      "version": "0.17.6",
+      "license": "MIT",
+      "copyright": ""
+    },
+    {
+      "name": "shapely",
+      "version": "2.2.0",
+      "license": "BSD-3-Clause",
+      "copyright": "Sean Gillies"
+    },
+    {
+      "name": "six",
+      "version": "1.17.0",
+      "license": "MIT License",
+      "copyright": "Benjamin Peterson"
+    },
+    {
+      "name": "tqdm",
+      "version": "4.70.1",
+      "license": "MPL-2.0 AND MIT",
+      "copyright": ""
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "license": "PSF-2.0",
+      "copyright": ""
+    }
+  ]
+}

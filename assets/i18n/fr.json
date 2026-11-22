@@ -1,10 +1,28 @@
 {
   "app_name": "Doc Scan PDF Editor",
+  "home": {
+    "open_file": "Ouvrir un PDF ou une image…",
+    "welcome": "Numérisez, améliorez, OCRisez, annotez et exportez des PDF — 100 % sur votre appareil."
+  },
+  "doc": {
+    "tool_text": "Ajouter du texte",
+    "tool_rect": "Cadre",
+    "tool_highlight": "Surlignage",
+    "enhance": "Améliorer",
+    "ocr": "OCR",
+    "export": "Exporter en PDF",
+    "ocr_result": "Résultat OCR",
+    "text_content": "Texte du commentaire",
+    "font_size": "Taille de police (pt)",
+    "add_text": "Ajouter du texte",
+    "enhanced": "Image améliorée"
+  },
   "settings": {
     "title": "Réglages",
     "scanning": "Numérisation",
     "dpi": "Résolution (DPI)",
     "dpi_auto": "Automatique",
+    "ocr_languages": "Langues OCR",
     "language": "Langue",
     "legal": "Légal"
   },

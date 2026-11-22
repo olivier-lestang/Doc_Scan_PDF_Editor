@@ -1,18 +1,37 @@
-"""CLI entry point; prints the version until the UI is implemented.
+"""Desktop application entry point (Flet UI over the Python core).
 
-Point d'entrée CLI ; affiche la version en attendant l'UI.
+Point d'entrée de l'application desktop (UI Flet au-dessus du cœur
+Python).
+
+Run in development:
+    uv run flet run src/docscanner/app/main.py
+Pack an installer:
+    uv run flet pack src/docscanner/app/main.py --name DocScanPDFEditor
 """
 
-from docscanner import __version__
+import flet as ft
+
+from docscanner.app.state import AppState
+from docscanner.app.ui.home import build_home_view
 
 
-def main() -> None:
-    """Print the app name and version.
+def main(page: ft.Page) -> None:
+    """Flet entry point: build the home view bound to a fresh state.
 
-    Affiche le nom et la version de l'application.
+    Point d'entrée Flet : construit la vue d'accueil avec un état neuf.
     """
-    print(f"Doc Scan PDF Editor {__version__}")
+    state = AppState()
+    state.page = page
+    build_home_view(state)
+
+
+def cli() -> None:
+    """Console-script entry point: launch the desktop app window.
+
+    Point d'entrée du script console : lance la fenêtre de l'application.
+    """
+    ft.app(target=main)
 
 
 if __name__ == "__main__":
-    main()
+    cli()
