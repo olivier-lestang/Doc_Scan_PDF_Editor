@@ -15,18 +15,24 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
+          ignore-nothing-to-cache: true
 
       - name: Install dependencies
+        if: hashFiles('pyproject.toml', 'uv.lock') != ''
         run: uv sync --frozen
 
       - name: Format check
+        if: hashFiles('pyproject.toml', 'uv.lock') != ''
         run: uv run ruff format --check
 
       - name: Lint
+        if: hashFiles('pyproject.toml', 'uv.lock') != ''
         run: uv run ruff check
 
       - name: Type check (strict)
+        if: hashFiles('pyproject.toml', 'uv.lock') != ''
         run: uv run mypy
 
       - name: Tests
+        if: hashFiles('pyproject.toml', 'uv.lock') != ''
         run: uv run pytest --cov=docscanner --cov-report=term-missing
