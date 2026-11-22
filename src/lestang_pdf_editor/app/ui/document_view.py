@@ -135,7 +135,9 @@ def build_document_view(state: AppState) -> None:
 
     gesture = ft.GestureDetector(
         content=canvas_stack,
-        on_tap=lambda e: _on_tap(state, e, canvas_stack, refresh),
+        # on_tap receives the raw event; on_tap_down is wrapped in TapEvent
+        # with local_x/local_y (needed to place the text at the click point).
+        on_tap_down=lambda e: _on_tap(state, e, canvas_stack, refresh),
         on_pan_start=lambda e: _on_pan_start(state, e),
         on_pan_update=lambda e: _on_pan_update(state, e),
         on_pan_end=lambda e: _on_pan_end(state, e),
