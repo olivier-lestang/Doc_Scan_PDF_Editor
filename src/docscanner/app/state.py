@@ -135,6 +135,7 @@ class AppState:
         self.i18n: dict[str, Any] = self._load_i18n()
         self.page: Any = None
         self._drag_start: tuple[float, float] | None = None
+        self._drag_last: tuple[float, float] | None = None
         self._listeners: list[Callable[[], None]] = []
 
     def add_listener(self, listener: Callable[[], None]) -> None:

@@ -3,6 +3,7 @@
 Vue éditeur de document : pages, canevas avec annotations, OCR, export.
 """
 
+import json
 from collections.abc import Callable
 
 import flet as ft
@@ -252,10 +253,29 @@ def _annotation_overlays(
                     top=y * height,
                     width=w * width,
                     height=h * height,
-                    bgcolor=ft.colors.with_opacity(0.35, annotation.color),
+                    bgcolor=ft.Colors.with_opacity(0.35, annotation.color),
                 )
             )
     return overlays
+
+
+def _local_point(event: object) -> tuple[float, float]:
+    """Extract local (x, y) from a pointer event, tolerating raw JSON data.
+
+    Extrait (x, y) en coordonnées locales d'un événement pointeur, même
+    si l'événement brut arrive sous forme de données JSON.
+    """
+    x = getattr(event, "local_x", None)
+    y = getattr(event, "local_y", None)
+    data = getattr(event, "data", None)
+    if (x is None or y is None) and data:
+        try:
+            parsed = json.loads(str(data))
+            x = parsed.get("lx", x)
+            y = parsed.get("ly", y)
+        except (TypeError, ValueError):
+            pass
+    return float(x or 0.0), float(y or 0.0)
 
 
 def _on_tap(state: AppState, event: ft.TapEvent) -> None:
@@ -281,8 +301,9 @@ def _on_tap(state: AppState, event: ft.TapEvent) -> None:
         image = state.page_image(state.selected_page, state.display_dpi())
         if isinstance(image, Err):
             return
-        x = event.local_x / image.value.width
-        y = event.local_y / image.value.height
+        point_x, point_y = _local_point(event)
+        x = point_x / image.value.width
+        y = point_y / image.value.height
         state.add_annotation(
             TextAnnotation(
                 page_index=state.selected_page,
@@ -311,14 +332,17 @@ def _on_pan_start(state: AppState, event: ft.DragStartEvent) -> None:
 
     Mémorise le point de début de glisser pour les outils cadre/surlignage.
     """
-    state._drag_start = (event.local_x, event.local_y)
+    state._drag_start = _local_point(event)
+    state._drag_last = state._drag_start
 
 
 def _on_pan_update(state: AppState, event: ft.DragUpdateEvent) -> None:
-    """Update the drag preview (no-op visual for now).
+    """Track the current drag position (DragEndEvent has no coordinates).
 
-    Met à jour l'aperçu du glisser (visuel sans effet pour l'instant).
+    Suit la position courante du glisser (DragEndEvent n'a pas de
+    coordonnées).
     """
+    state._drag_last = _local_point(event)
 
 
 def _on_pan_end(state: AppState, event: ft.DragEndEvent) -> None:
@@ -331,12 +355,13 @@ def _on_pan_end(state: AppState, event: ft.DragEndEvent) -> None:
     start = getattr(state, "_drag_start", None)
     if start is None:
         return
+    end = getattr(state, "_drag_last", None) or start
     image = state.page_image(state.selected_page, state.display_dpi())
     if isinstance(image, Err):
         return
     width, height = image.value.width, image.value.height
     x1, y1 = start[0] / width, start[1] / height
-    x2, y2 = event.local_x / width, event.local_y / height
+    x2, y2 = end[0] / width, end[1] / height
     rect = (min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
     if rect[2] < 0.005 or rect[3] < 0.005:
         return

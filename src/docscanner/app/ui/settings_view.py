@@ -105,11 +105,10 @@ def build_settings_view(state: AppState) -> None:
         ],
         scroll=ft.ScrollMode.ALWAYS,
         expand=True,
-        padding=16,
     )
     page.controls.clear()
     page.controls.append(app_bar(state, state.t("settings.title")))
-    page.controls.append(body)
+    page.controls.append(ft.Container(content=body, padding=16, expand=True))
     page.update()
 
 
