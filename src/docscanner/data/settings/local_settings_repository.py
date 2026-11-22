@@ -55,6 +55,8 @@ class LocalSettingsRepository:
             schema_version=raw.get("schema_version", SCHEMA_VERSION),
             scan=ScanSettings(dpi=scan_raw.get("dpi", "auto")),
             language=str(raw.get("language", "en")),
+            first_name=str(raw.get("first_name", "")),
+            last_name=str(raw.get("last_name", "")),
         )
 
     def save(self, settings: Settings) -> None:
@@ -68,6 +70,8 @@ class LocalSettingsRepository:
             "schema_version": settings.schema_version,
             "scan": {"dpi": settings.scan.dpi},
             "language": settings.language,
+            "first_name": settings.first_name,
+            "last_name": settings.last_name,
         }
         tmp_path = self._path.with_suffix(".tmp")
         tmp_path.write_text(

@@ -82,6 +82,21 @@ uv run python tool/generate_licenses.py   # regenerate assets/licenses.json
 
 CI (GitHub Actions) runs the same checks on every push/PR.
 
+## Open the code in VS Code
+
+```powershell
+cd "$HOME\projects\Doc_Scan_PDF_Editor"
+code .        # or File > Open Folder in VS Code
+```
+
+Recommended extensions: **Python**, **Pylance**, **Ruff** (all from the
+Marketplace). The `.vscode/settings.json` in the repo points the
+interpreter at `.venv` and enables pytest + Ruff. To launch the app from
+VS Code: install `flet[all]==0.28.3` into the venv first, then press F5
+with the « Doc Scan PDF Editor (flet run) » configuration (see
+`.vscode/launch.json`), or use the integrated terminal with
+`uv run --with "flet[all]==0.28.3" flet run src/docscanner/app/main.py`.
+
 ## Licensing
 
 The application code is MIT (see [LICENSE](LICENSE)). Third-party

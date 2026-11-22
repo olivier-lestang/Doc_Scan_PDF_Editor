@@ -84,13 +84,56 @@ def _buffer_to_pil(buffer: ImageBuffer) -> Image.Image:
     return Image.frombytes("RGB", (buffer.width, buffer.height), buffer.data)
 
 
-def _annotation_to_pdf_dict(
-    annotation: Annotation, page_width: float, page_height: float
-) -> DictionaryObject:
-    """Build a native PDF annotation dictionary from a domain annotation.
+PDF_FONT_NAMES: dict[str, tuple[str, str, str, str]] = {
+    "Helvetica": ("/Helv", "/HeBo", "/HeOb", "/HeBO"),
+    "Arial": ("/Helv", "/HeBo", "/HeOb", "/HeBO"),
+    "Times New Roman": ("/TiRo", "/TiBo", "/TiIt", "/TiBI"),
+    "Courier New": ("/Cour", "/CoBo", "/CoOb", "/CoBO"),
+}
+"""Base-14 PDF font names: (regular, bold, italic, bold-italic).
 
-    Construit un dictionnaire d'annotation PDF natif à partir d'une
-    annotation du domaine.
+Noms de polices PDF de base 14 : (régulier, gras, italique, gras-italique).
+"""
+
+
+def _pdf_font_name(family: str, bold: bool, italic: bool) -> str:
+    """Map a UI font family + style to a base-14 PDF font name.
+
+    Convertit une police d'UI + style en nom de police PDF de base 14.
+    """
+    regular, bold_name, italic_name, bold_italic_name = PDF_FONT_NAMES.get(
+        family, PDF_FONT_NAMES["Helvetica"]
+    )
+    if bold and italic:
+        return bold_italic_name
+    if bold:
+        return bold_name
+    if italic:
+        return italic_name
+    return regular
+
+
+def _hex_color_array(color: str) -> ArrayObject:
+    """Convert a '#RRGGBB' string to a PDF RGB color array.
+
+    Convertit une chaîne « #RRGGBB » en tableau de couleur RVB PDF.
+    """
+    return ArrayObject(
+        [
+            FloatObject(int(color[1:3], 16) / 255),
+            FloatObject(int(color[3:5], 16) / 255),
+            FloatObject(int(color[5:7], 16) / 255),
+        ]
+    )
+
+
+def _annotation_to_pdf_dicts(
+    annotation: Annotation, page_width: float, page_height: float
+) -> list[DictionaryObject]:
+    """Build native PDF annotation dictionaries from a domain annotation.
+
+    Construit les dictionnaires d'annotations PDF natifs à partir d'une
+    annotation du domaine (plusieurs si soulignement/surlignage de texte).
 
     Coordinates are normalized (origin top-left); PDF user space has its
     origin at the bottom-left, so Y is flipped here.
@@ -107,25 +150,34 @@ def _annotation_to_pdf_dict(
     annot[NameObject("/Type")] = NameObject("/Annot")
     annot[NameObject("/Rect")] = rect
     annot[NameObject("/F")] = NumberObject(4)
+    extra: list[DictionaryObject] = []
     if isinstance(annotation, TextAnnotation):
         annot[NameObject("/Subtype")] = NameObject("/FreeText")
         annot[NameObject("/Contents")] = TextStringObject(annotation.content)
-        font_name = "/Helv"
-        if annotation.font_family.lower().startswith("times"):
-            font_name = "/TiRo"
-        elif annotation.font_family.lower().startswith("courier"):
-            font_name = "/Cour"
-        da = f"{font_name} {annotation.font_size_pt} Tf 0 g"
+        font_name = _pdf_font_name(
+            annotation.font_family, annotation.bold, annotation.italic
+        )
+        r, g, b = (int(annotation.color[i : i + 2], 16) / 255 for i in (1, 3, 5))
+        da = f"{font_name} {annotation.font_size_pt} Tf {r:.3f} {g:.3f} {b:.3f} rg"
         annot[NameObject("/DA")] = TextStringObject(da)
+        if annotation.underline:
+            underline = DictionaryObject()
+            underline[NameObject("/Type")] = NameObject("/Annot")
+            underline[NameObject("/Subtype")] = NameObject("/Underline")
+            underline[NameObject("/Rect")] = rect
+            underline[NameObject("/F")] = NumberObject(4)
+            extra.append(underline)
+        if annotation.highlight_color:
+            highlight = DictionaryObject()
+            highlight[NameObject("/Type")] = NameObject("/Annot")
+            highlight[NameObject("/Subtype")] = NameObject("/Highlight")
+            highlight[NameObject("/Rect")] = rect
+            highlight[NameObject("/F")] = NumberObject(4)
+            highlight[NameObject("/C")] = _hex_color_array(annotation.highlight_color)
+            extra.append(highlight)
     elif isinstance(annotation, RectangleAnnotation):
         annot[NameObject("/Subtype")] = NameObject("/Square")
-        annot[NameObject("/C")] = ArrayObject(
-            [
-                FloatObject(int(annotation.stroke_color[1:3], 16) / 255),
-                FloatObject(int(annotation.stroke_color[3:5], 16) / 255),
-                FloatObject(int(annotation.stroke_color[5:7], 16) / 255),
-            ]
-        )
+        annot[NameObject("/C")] = _hex_color_array(annotation.stroke_color)
         annot[NameObject("/BS")] = DictionaryObject(
             {
                 NameObject("/W"): FloatObject(annotation.stroke_width_pt),
@@ -134,17 +186,11 @@ def _annotation_to_pdf_dict(
         )
     elif isinstance(annotation, HighlightAnnotation):
         annot[NameObject("/Subtype")] = NameObject("/Highlight")
-        annot[NameObject("/C")] = ArrayObject(
-            [
-                FloatObject(int(annotation.color[1:3], 16) / 255),
-                FloatObject(int(annotation.color[3:5], 16) / 255),
-                FloatObject(int(annotation.color[5:7], 16) / 255),
-            ]
-        )
+        annot[NameObject("/C")] = _hex_color_array(annotation.color)
     else:  # pragma: no cover - exhaustive union
         msg = f"unsupported annotation: {annotation!r}"
         raise TypeError(msg)
-    return annot
+    return [annot, *extra]
 
 
 class PypdfiumPdfEngine:
@@ -347,8 +393,8 @@ class PypdfiumPdfEngine:
             page = writer.pages[annotation.page_index]
             width = float(page.mediabox.width)
             height = float(page.mediabox.height)
-            by_page.setdefault(annotation.page_index, []).append(
-                _annotation_to_pdf_dict(annotation, width, height)
+            by_page.setdefault(annotation.page_index, []).extend(
+                _annotation_to_pdf_dicts(annotation, width, height)
             )
         for page_index, annots in by_page.items():
             page = writer.pages[page_index]

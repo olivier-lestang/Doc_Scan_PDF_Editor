@@ -16,9 +16,10 @@ Rectangle normalisé (x, y, largeur, hauteur), chaque valeur dans [0, 1].
 
 @dataclass(frozen=True)
 class TextAnnotation:
-    """Free-text comment with font family, size and color.
+    """Free-text comment with a Word-like style and audit metadata.
 
-    Commentaire texte libre avec police, taille et couleur.
+    Commentaire texte libre avec un style façon Word et des métadonnées
+    d'audit (auteur, horodatage avec fuseau horaire).
     """
 
     kind: Literal["text"] = "text"
@@ -28,6 +29,12 @@ class TextAnnotation:
     font_family: str = "Helvetica"
     font_size_pt: float = 12.0
     color: str = "#000000"
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+    highlight_color: str | None = None
+    author: str = ""
+    created_at: str = ""
 
 
 @dataclass(frozen=True)

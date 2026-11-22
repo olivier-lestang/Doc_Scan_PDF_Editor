@@ -15,7 +15,8 @@
     "text_content": "注释文字",
     "font_size": "字号 (pt)",
     "add_text": "添加文字",
-    "enhanced": "图像已增强"
+    "enhanced": "图像已增强",
+    "validate": "确认 (Enter)"
   },
   "settings": {
     "title": "设置",
@@ -35,5 +36,21 @@
   },
   "premium": {
     "available_with_subscription": "订阅后可用"
+  },
+  "ribbon": {
+    "font": "字体",
+    "colors": "颜色",
+    "insert": "插入",
+    "image": "图像",
+    "file": "文件",
+    "bold": "加粗",
+    "italic": "斜体",
+    "underline": "下划线",
+    "text_color": "文字颜色",
+    "highlight": "突出显示",
+    "none": "无",
+    "zoom_in": "放大",
+    "zoom_out": "缩小",
+    "zoom_reset": "重置缩放 (100%)"
   }
 }

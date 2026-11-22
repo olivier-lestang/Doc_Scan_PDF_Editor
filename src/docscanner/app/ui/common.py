@@ -56,6 +56,43 @@ def show_scrollable_text(
     page.update()
 
 
+GRADIENT_TOP = "#E1F5FE"
+"""Top color of the vertical light-blue background gradient.
+
+Couleur haute du dégradé vertical bleu clair de l'arrière-plan.
+"""
+
+GRADIENT_BOTTOM = "#B3E5FC"
+"""Bottom color of the vertical light-blue background gradient.
+
+Couleur basse du dégradé vertical bleu clair de l'arrière-plan.
+"""
+
+
+def page_scaffold(
+    state: AppState,
+    title: str,
+    body: ft.Control,
+    on_back: Callable[[], None] | None = None,
+) -> ft.Control:
+    """Wrap a view in the light-blue vertical gradient + app bar.
+
+    Enveloppe une vue dans le dégradé vertical bleu clair + la barre d'app.
+    """
+    return ft.Container(
+        expand=True,
+        gradient=ft.LinearGradient(
+            begin=ft.alignment.top_center,
+            end=ft.alignment.bottom_center,
+            colors=[GRADIENT_TOP, GRADIENT_BOTTOM],
+        ),
+        content=ft.Column(
+            controls=[app_bar(state, title, on_back), body],
+            expand=True,
+        ),
+    )
+
+
 def app_bar(
     state: AppState, title: str, on_back: Callable[[], None] | None = None
 ) -> ft.AppBar:

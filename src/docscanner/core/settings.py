@@ -44,3 +44,5 @@ class Settings:
     schema_version: int = SCHEMA_VERSION
     scan: ScanSettings = field(default_factory=ScanSettings)
     language: str = "en"
+    first_name: str = ""
+    last_name: str = ""

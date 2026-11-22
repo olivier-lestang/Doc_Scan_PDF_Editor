@@ -8,6 +8,8 @@ exercised headless in tests.
 
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +67,35 @@ PRIVACY_TEXT = (
 """Privacy statement shown on the in-app legal page.
 
 Politique de confidentialité affichée sur la page légale de l'application.
+"""
+
+
+@dataclass
+class TextStyle:
+    """Current text style chosen in the ribbon (Word-like).
+
+    Style de texte courant choisi dans le ruban (façon Word).
+    """
+
+    font_family: str = "Helvetica"
+    font_size_pt: float = 14.0
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+    highlight_color: str | None = None
+    text_color: str = "#000000"
+
+
+ZOOM_MIN = 0.1
+"""Minimum zoom factor (10%).
+
+Facteur de zoom minimal (10 %).
+"""
+
+ZOOM_MAX = 8.0
+"""Maximum zoom factor (800%).
+
+Facteur de zoom maximal (800 %).
 """
 
 
@@ -130,6 +161,9 @@ class AppState:
         self.document: Document | None = None
         self.selected_page = 0
         self.tool = "select"
+        self.text_style = TextStyle()
+        self.zoom = 1.0
+        self.ctrl_pressed = False
         self.page_ocr: dict[int, str] = {}
         self.page_language: dict[int, str] = {}
         self.i18n: dict[str, Any] = self._load_i18n()
@@ -137,6 +171,58 @@ class AppState:
         self._drag_start: tuple[float, float] | None = None
         self._drag_last: tuple[float, float] | None = None
         self._listeners: list[Callable[[], None]] = []
+
+    def author_name(self) -> str:
+        """Return the user's full name for annotation audit metadata.
+
+        Retourne le nom complet de l'utilisateur pour les annotations.
+        """
+        name = f"{self.settings.first_name} {self.settings.last_name}".strip()
+        return name or "Unknown user"
+
+    def new_timestamp(self) -> str:
+        """Return the current local time as ISO 8601 with timezone.
+
+        Retourne l'heure locale courante en ISO 8601 avec fuseau horaire.
+        """
+        return datetime.now().astimezone().isoformat(timespec="seconds")
+
+    def set_zoom(self, zoom: float) -> None:
+        """Set the zoom factor, clamped between ZOOM_MIN and ZOOM_MAX.
+
+        Règle le zoom, borné entre ZOOM_MIN et ZOOM_MAX.
+        """
+        self.zoom = min(ZOOM_MAX, max(ZOOM_MIN, zoom))
+        self._notify()
+
+    def zoom_in(self) -> None:
+        """Increase the zoom by 10%.
+
+        Augmente le zoom de 10 %.
+        """
+        self.set_zoom(self.zoom * 1.1)
+
+    def zoom_out(self) -> None:
+        """Decrease the zoom by 10%.
+
+        Diminue le zoom de 10 %.
+        """
+        self.set_zoom(self.zoom / 1.1)
+
+    def zoom_reset(self) -> None:
+        """Reset the zoom to 100%.
+
+        Réinitialise le zoom à 100 %.
+        """
+        self.set_zoom(1.0)
+
+    def toggle_tool(self, tool: str) -> None:
+        """Toggle a tool: clicking the active tool again deselects it.
+
+        Bascule un outil : recliquer sur l'outil actif le désélectionne.
+        """
+        self.tool = "select" if self.tool == tool else tool
+        self._notify()
 
     def add_listener(self, listener: Callable[[], None]) -> None:
         """Register a callback invoked whenever the state changes.

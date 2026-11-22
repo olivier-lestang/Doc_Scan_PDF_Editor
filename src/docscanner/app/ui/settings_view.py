@@ -7,7 +7,7 @@ pages légales.
 import flet as ft
 
 from docscanner.app.state import LEGAL_NOTICE, PRIVACY_TEXT, AppState
-from docscanner.app.ui.common import app_bar, show_scrollable_text
+from docscanner.app.ui.common import page_scaffold, show_scrollable_text
 from docscanner.app.ui.home import build_home_view
 
 UI_LANGUAGES = {"en": "English", "fr": "Français", "es": "Español", "zh": "中文"}
@@ -107,8 +107,13 @@ def build_settings_view(state: AppState) -> None:
         expand=True,
     )
     page.controls.clear()
-    page.controls.append(app_bar(state, state.t("settings.title")))
-    page.controls.append(ft.Container(content=body, padding=16, expand=True))
+    page.controls.append(
+        page_scaffold(
+            state,
+            state.t("settings.title"),
+            ft.Container(content=body, padding=16, expand=True),
+        )
+    )
     page.update()
 
 

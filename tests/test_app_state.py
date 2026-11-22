@@ -83,6 +83,44 @@ def test_settings_persist_across_state_instances(tmp_path: Path) -> None:
     assert reloaded.t("settings.title") == "Réglages"
 
 
+def test_zoom_is_clamped_and_toggle_tool_works(tmp_path: Path) -> None:
+    """Zoom stays within bounds; tools toggle on repeated clicks.
+
+    Le zoom reste dans les bornes ; les outils se basculent au 2e clic.
+    """
+    from docscanner.app.state import ZOOM_MAX, ZOOM_MIN
+
+    state = make_state(tmp_path)
+    assert state.zoom == 1.0
+    for _ in range(200):
+        state.zoom_in()
+    assert state.zoom == ZOOM_MAX
+    for _ in range(400):
+        state.zoom_out()
+    assert state.zoom == ZOOM_MIN
+    state.zoom_reset()
+    assert state.zoom == 1.0
+    state.toggle_tool("text")
+    assert state.tool == "text"
+    state.toggle_tool("text")
+    assert state.tool == "select"
+
+
+def test_author_and_timestamp(tmp_path: Path) -> None:
+    """Author name comes from settings; timestamp carries the timezone.
+
+    Le nom d'auteur vient des réglages ; l'horodatage porte le fuseau
+    horaire.
+    """
+    from dataclasses import replace
+
+    state = make_state(tmp_path)
+    state.settings = replace(state.settings, first_name="Jean", last_name="Dupont")
+    assert state.author_name() == "Jean Dupont"
+    ts = state.new_timestamp()
+    assert "+" in ts or "-" in ts[19:] or "Z" in ts  # timezone offset present
+
+
 def test_i18n_files_have_identical_keys() -> None:
     """All four i18n assets expose exactly the same keys as en.json.
 

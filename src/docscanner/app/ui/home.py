@@ -8,7 +8,7 @@ from pathlib import Path
 import flet as ft
 
 from docscanner.app.state import AppState
-from docscanner.app.ui.common import app_bar, show_message
+from docscanner.app.ui.common import page_scaffold, show_message
 from docscanner.core.result import Ok
 
 ALLOWED_EXTENSIONS = ["pdf", "png", "jpg", "jpeg", "tif", "tiff", "bmp"]
@@ -43,8 +43,7 @@ def build_home_view(state: AppState) -> None:
         expand=True,
     )
     page.controls.clear()
-    page.controls.append(app_bar(state, state.t("app_name")))
-    page.controls.append(body)
+    page.controls.append(page_scaffold(state, state.t("app_name"), body))
     page.update()
 
 

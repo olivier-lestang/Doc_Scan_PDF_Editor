@@ -15,7 +15,8 @@
     "text_content": "Texte du commentaire",
     "font_size": "Taille de police (pt)",
     "add_text": "Ajouter du texte",
-    "enhanced": "Image améliorée"
+    "enhanced": "Image améliorée",
+    "validate": "Valider (Entrée)"
   },
   "settings": {
     "title": "Réglages",
@@ -35,5 +36,21 @@
   },
   "premium": {
     "available_with_subscription": "Disponible avec un abonnement"
+  },
+  "ribbon": {
+    "font": "Police",
+    "colors": "Couleurs",
+    "insert": "Insertion",
+    "image": "Image",
+    "file": "Fichier",
+    "bold": "Gras",
+    "italic": "Italique",
+    "underline": "Souligné",
+    "text_color": "Couleur du texte",
+    "highlight": "Surlignage",
+    "none": "Aucun",
+    "zoom_in": "Zoom avant",
+    "zoom_out": "Zoom arrière",
+    "zoom_reset": "Réinitialiser le zoom (100 %)"
   }
 }

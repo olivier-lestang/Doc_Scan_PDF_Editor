@@ -15,7 +15,8 @@
     "text_content": "Texto del comentario",
     "font_size": "Tamaño de fuente (pt)",
     "add_text": "Añadir texto",
-    "enhanced": "Imagen mejorada"
+    "enhanced": "Imagen mejorada",
+    "validate": "Validar (Enter)"
   },
   "settings": {
     "title": "Ajustes",
@@ -35,5 +36,21 @@
   },
   "premium": {
     "available_with_subscription": "Disponible con una suscripción"
+  },
+  "ribbon": {
+    "font": "Fuente",
+    "colors": "Colores",
+    "insert": "Insertar",
+    "image": "Imagen",
+    "file": "Archivo",
+    "bold": "Negrita",
+    "italic": "Cursiva",
+    "underline": "Subrayado",
+    "text_color": "Color del texto",
+    "highlight": "Resaltado",
+    "none": "Ninguno",
+    "zoom_in": "Ampliar",
+    "zoom_out": "Reducir",
+    "zoom_reset": "Restablecer zoom (100 %)"
   }
 }

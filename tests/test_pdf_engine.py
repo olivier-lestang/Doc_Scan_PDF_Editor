@@ -90,7 +90,13 @@ def test_export_pdf_with_native_annotations(tmp_path: Path) -> None:
                 page_index=0,
                 rect=(0.1, 0.1, 0.5, 0.08),
                 content="Hello",
+                font_family="Helvetica",
                 font_size_pt=18,
+                bold=True,
+                underline=True,
+                highlight_color="#FFFF00",
+                author="Jean Dupont",
+                created_at="2026-11-22T14:00:00+01:00",
             ),
         ),
         Ok,
@@ -106,9 +112,14 @@ def test_export_pdf_with_native_annotations(tmp_path: Path) -> None:
     assert isinstance(result, Ok)
     reader = PdfReader(str(out))
     annots = reader.pages[0].get("/Annots")
-    assert annots is not None and len(annots) == 3
+    assert annots is not None and len(annots) == 5
     subtypes = {a.get_object()["/Subtype"] for a in annots}
-    assert subtypes == {"/FreeText", "/Square", "/Highlight"}
+    assert subtypes == {"/FreeText", "/Square", "/Highlight", "/Underline"}
+    freetext = next(
+        a.get_object() for a in annots if a.get_object()["/Subtype"] == "/FreeText"
+    )
+    assert "/HeBo" in str(freetext["/DA"])  # bold Helvetica in appearance
+    assert str(freetext["/Contents"]) == "Hello"
 
 
 def test_open_image_and_export_as_pdf(tmp_path: Path) -> None:

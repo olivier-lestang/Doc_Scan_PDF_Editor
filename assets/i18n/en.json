@@ -15,7 +15,8 @@
     "text_content": "Comment text",
     "font_size": "Font size (pt)",
     "add_text": "Add text",
-    "enhanced": "Image enhanced"
+    "enhanced": "Image enhanced",
+    "validate": "Validate (Enter)"
   },
   "settings": {
     "title": "Settings",
@@ -35,5 +36,21 @@
   },
   "premium": {
     "available_with_subscription": "Available with a subscription"
+  },
+  "ribbon": {
+    "font": "Font",
+    "colors": "Colors",
+    "insert": "Insert",
+    "image": "Image",
+    "file": "File",
+    "bold": "Bold",
+    "italic": "Italic",
+    "underline": "Underline",
+    "text_color": "Text color",
+    "highlight": "Highlight",
+    "none": "None",
+    "zoom_in": "Zoom in",
+    "zoom_out": "Zoom out",
+    "zoom_reset": "Reset zoom (100%)"
   }
 }

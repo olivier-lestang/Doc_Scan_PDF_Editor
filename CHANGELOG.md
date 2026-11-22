@@ -39,3 +39,17 @@ This file is also embedded in the app and shown on the "Release notes"
   (`assets/licenses.json`), release notes from CHANGELOG.md, privacy.
 - Packaging docs (`docs/PACKAGING.md`) and a release workflow building
   installers on `v*` tags.
+- Professional editor UI: Word-like ribbon (font family/size, bold,
+  italic, underline, text color, highlight marker), light-blue vertical
+  gradient background, page centered in the window, zoom controls
+  bottom-right + Ctrl/Cmd+wheel and Ctrl +/- / 0 shortcuts.
+- Text tool: text-insertion cursor, inline editor opened exactly at the
+  click point, validated with Enter or the visible ✓ button, toggle mode
+  (one click adds as many text zones as wanted until clicked again),
+  hover tooltip with author (first + last name from settings) and ISO
+  timestamp with timezone.
+- Styled PDF export: base-14 font mapping (bold/italic), /Underline and
+  /Highlight annotations for text style, native /FreeText, /Square.
+- User profile (first/last name) in settings for annotation metadata.
+- VS Code workspace config (`.vscode/`): interpreter, pytest, Ruff, F5
+  launch of the app.
