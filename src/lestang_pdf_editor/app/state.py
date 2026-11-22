@@ -171,6 +171,10 @@ class AppState:
         self.page: Any = None
         self._drag_start: tuple[float, float] | None = None
         self._drag_last: tuple[float, float] | None = None
+        self._search_query = ""
+        self._search_matches: list[int] = []
+        self._search_position = -1
+        self.pending_export: dict[str, object] = {}
         self._listeners: list[Callable[[], None]] = []
 
     def author_name(self) -> str:
@@ -430,6 +434,66 @@ class AppState:
             self._notify()
         return result
 
+    def duplicate_page(self) -> Result[int, str]:
+        """Duplicate the current page (copy appended at the end).
+
+        Duplique la page courante (copie ajoutée à la fin).
+        """
+        if self.document is None:
+            return Err("no document open")
+        result = self.pdf_engine.duplicate_page(
+            self.document.document_id, self.selected_page
+        )
+        self._notify()
+        return result
+
+    def search(self, query: str) -> list[int]:
+        """Return page indices whose OCR text contains the query.
+
+        Retourne les index des pages dont le texte OCR contient la requête.
+        Pages not yet OCR'd are processed on the fly.
+        """
+        if not query.strip():
+            return []
+        needle = query.lower()
+        matches: list[int] = []
+        for index in range(self.page_count()):
+            if index not in self.page_ocr:
+                self.ocr_page(index)
+            text = self.page_ocr.get(index, "")
+            if needle in text.lower():
+                matches.append(index)
+        return matches
+
+    def set_metadata(self, metadata: dict[str, str]) -> Result[None, str]:
+        """Set document metadata (title, author, subject, keywords).
+
+        Définit les métadonnées du document (titre, auteur, sujet,
+        mots-clés).
+        """
+        if self.document is None:
+            return Err("no document open")
+        return self.pdf_engine.set_metadata(self.document.document_id, metadata)
+
+    def metadata(self) -> dict[str, str]:
+        """Return the current document metadata.
+
+        Retourne les métadonnées courantes du document.
+        """
+        if self.document is None:
+            return {}
+        return self.pdf_engine.metadata(self.document.document_id)
+
+    def pdf_version_label(self) -> str:
+        """Return a human-readable PDF version label of the open document.
+
+        Retourne un libellé lisible de la version PDF du document ouvert.
+        """
+        if self.document is None or self.document.pdf_version is None:
+            return "-"
+        version = self.document.pdf_version
+        return f"PDF {version.major}.{version.minor}"
+
     def undo(self) -> Result[None, str]:
         """Remove the most recently added annotation (Ctrl+Z).
 
@@ -580,15 +644,26 @@ class AppState:
             return ()
         return self.pdf_engine.annotations(self.document.document_id)
 
-    def export_pdf(self, destination_path: str) -> Result[str, str]:
-        """Export the open document (with annotations) as a PDF file.
+    def export_pdf(
+        self,
+        destination_path: str,
+        *,
+        flatten: bool = False,
+        watermark: str | None = None,
+        password: str | None = None,
+    ) -> Result[str, str]:
+        """Export the open document as PDF (annotations, options, password).
 
-        Exporte le document ouvert (avec annotations) en fichier PDF.
+        Exporte le document en PDF (annotations, options, mot de passe).
         """
         if self.document is None:
             return Err("no document open")
         return self.pdf_engine.export(
-            self.document.document_id, destination_path, flatten=False
+            self.document.document_id,
+            destination_path,
+            flatten=flatten,
+            watermark=watermark,
+            password=password,
         )
 
     def load_release_notes(self) -> str:

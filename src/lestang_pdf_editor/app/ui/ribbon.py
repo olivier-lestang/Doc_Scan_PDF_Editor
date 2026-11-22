@@ -159,11 +159,22 @@ def _toggle_style(state: AppState, refresh: Callable[[], None], attr: str) -> No
     refresh()
 
 
+STAMPS: dict[str, tuple[str, str]] = {
+    "approved": ("doc.stamp_approved", "#2E7D32"),
+    "confidential": ("doc.stamp_confidential", "#C62828"),
+    "draft": ("doc.stamp_draft", "#F9A825"),
+}
+"""Stamp presets offered in the Insert group (i18n label key, color).
+
+Tampons prédéfinis proposés dans le groupe Insertion (clé i18n, couleur).
+"""
+
+
 def build_ribbon(
     state: AppState,
     refresh: Callable[[], None],
     toggle_tool: Callable[[str], None],
-    actions: dict[str, Callable[[], None]],
+    actions: dict[str, Callable[..., None]],
 ) -> ft.Control:
     """Build the full ribbon: file, page, insert, style, image, view, edit.
 
@@ -193,6 +204,11 @@ def build_ribbon(
                 icon=ft.Icons.UPLOAD_FILE,
                 tooltip=state.t("ribbon.insert_pdf"),
                 on_click=lambda _e: actions["insert_pdf"](),
+            ),
+            ft.IconButton(
+                icon=ft.Icons.INFO,
+                tooltip=state.t("ribbon.properties"),
+                on_click=lambda _e: actions["properties"](),
             ),
         ],
     )
@@ -224,6 +240,11 @@ def build_ribbon(
                 tooltip=state.t("ribbon.delete_page"),
                 on_click=lambda _e: actions["delete_page"](),
             ),
+            ft.IconButton(
+                icon=ft.Icons.CONTENT_COPY,
+                tooltip=f"{state.t('ribbon.duplicate')} (Ctrl+D)",
+                on_click=lambda _e: actions["duplicate"](),
+            ),
         ],
     )
     add_text_style = (
@@ -249,6 +270,16 @@ def build_ribbon(
                 tooltip=state.t("doc.tool_highlight"),
                 selected=state.tool == "highlight",
                 on_click=lambda _e: toggle_tool("highlight"),
+            ),
+            ft.Dropdown(
+                width=130,
+                value="",
+                hint_text=state.t("doc.stamp"),
+                options=[
+                    ft.dropdown.Option(key, state.t(label_key))
+                    for key, (label_key, _color) in STAMPS.items()
+                ],
+                on_change=lambda e: actions["stamp"](e.control.value),
             ),
         ],
     )
@@ -345,6 +376,11 @@ def build_ribbon(
                 icon=ft.Icons.UNDO,
                 tooltip=f"{state.t('ribbon.undo')} (Ctrl+Z)",
                 on_click=lambda _e: actions["undo"](),
+            ),
+            ft.IconButton(
+                icon=ft.Icons.SEARCH,
+                tooltip=f"{state.t('ribbon.search')} (Ctrl+F)",
+                on_click=lambda _e: actions["search"](),
             ),
         ],
     )

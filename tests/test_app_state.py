@@ -166,3 +166,48 @@ def test_i18n_files_have_identical_keys() -> None:
     for code in ("fr", "es", "zh"):
         other = json.loads((assets / f"{code}.json").read_text(encoding="utf-8"))
         assert keys(other) == reference_keys, code
+
+
+def test_duplicate_search_metadata_version_and_encrypted_export(
+    tmp_path: Path,
+) -> None:
+    """State-level duplicate, search, metadata, version label, password export.
+
+    Duplication, recherche, métadonnées, version et export chiffré au niveau
+    de l'état.
+    """
+    state = make_state(tmp_path)
+    pdf_path = tmp_path / "one.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=595, height=842)
+    with pdf_path.open("wb") as handle:
+        writer.write(handle)
+    assert isinstance(state.open_path(str(pdf_path)), Ok)
+
+    duplicated = state.duplicate_page()
+    assert isinstance(duplicated, Ok) and duplicated.value == 2
+    assert state.page_count() == 2
+
+    # Pre-fill the OCR cache so search() never needs the OCR models.
+    # Pré-remplit le cache OCR pour que search() n'ait pas besoin des modèles.
+    state.page_ocr[0] = "Bonjour le monde"
+    state.page_ocr[1] = "au revoir"
+    assert state.search("bonjour") == [0]
+    assert state.search("") == []
+
+    assert isinstance(
+        state.set_metadata({"title": "Contrat", "author": "Jean Dupont"}), Ok
+    )
+    assert state.metadata()["author"] == "Jean Dupont"
+    assert state.pdf_version_label().startswith("PDF ")
+
+    out = tmp_path / "locked.pdf"
+    exported = state.export_pdf(str(out), watermark="BROUILLON", password="pw123")
+    assert isinstance(exported, Ok)
+    reader = PdfReader(str(out))
+    assert reader.is_encrypted
+    assert reader.decrypt("pw123") != 0
+    assert len(reader.pages) == 2
+    annots = reader.pages[0].get("/Annots") or []
+    contents = [str(a.get_object().get("/Contents", "")) for a in annots]
+    assert "BROUILLON" in contents

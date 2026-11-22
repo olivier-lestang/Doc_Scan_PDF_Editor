@@ -1,30 +1,45 @@
 {
   "app_name": "Doc Scan PDF Editor",
   "home": {
-    "open_file": "Abrir un PDF o una imagen…",
-    "welcome": "Escanea, mejora, OCR, anota y exporta PDF — 100 % en tu dispositivo.",
+    "open_file": "Abrir un PDF o una imagen\u2026",
+    "welcome": "Escanea, mejora, OCR, anota y exporta PDF \u2014 100 % en tu dispositivo.",
     "recent": "Archivos recientes"
   },
   "doc": {
-    "tool_text": "Añadir texto",
-    "tool_rect": "Rectángulo",
+    "tool_text": "A\u00f1adir texto",
+    "tool_rect": "Rect\u00e1ngulo",
     "tool_highlight": "Resaltado",
     "enhance": "Mejorar",
     "ocr": "OCR",
     "export": "Exportar PDF",
     "ocr_result": "Resultado OCR",
     "text_content": "Texto del comentario",
-    "font_size": "Tamaño de fuente (pt)",
-    "add_text": "Añadir texto",
+    "font_size": "Tama\u00f1o de fuente (pt)",
+    "add_text": "A\u00f1adir texto",
     "enhanced": "Imagen mejorada",
     "validate": "Validar (Enter)",
-    "annotations": "Anotaciones"
+    "annotations": "Anotaciones",
+    "search_hint": "Buscar en el documento\u2026",
+    "search_results": "{n} resultado(s)",
+    "export_options": "Opciones de exportaci\u00f3n",
+    "export_watermark": "Texto de la marca de agua (opcional)",
+    "export_password": "Contrase\u00f1a (AES-256, opcional)",
+    "export_flatten": "Aplanar anotaciones en la p\u00e1gina",
+    "properties": "Propiedades del documento",
+    "meta_title": "T\u00edtulo",
+    "meta_author": "Autor",
+    "meta_subject": "Asunto",
+    "meta_keywords": "Palabras clave",
+    "stamp": "Sello",
+    "stamp_approved": "APROBADO",
+    "stamp_confidential": "CONFIDENCIAL",
+    "stamp_draft": "BORRADOR"
   },
   "settings": {
     "title": "Ajustes",
     "scanning": "Escaneo",
-    "dpi": "Resolución (DPI)",
-    "dpi_auto": "Automática",
+    "dpi": "Resoluci\u00f3n (DPI)",
+    "dpi_auto": "Autom\u00e1tica",
     "ocr_languages": "Idiomas OCR",
     "language": "Idioma",
     "legal": "Legal",
@@ -38,12 +53,12 @@
   "legal": {
     "title": "Legal",
     "legal_notice": "Aviso legal y derechos de autor",
-    "open_source_licenses": "Licencias de código abierto",
+    "open_source_licenses": "Licencias de c\u00f3digo abierto",
     "release_notes": "Novedades",
     "privacy": "Privacidad"
   },
   "premium": {
-    "available_with_subscription": "Disponible con una suscripción"
+    "available_with_subscription": "Disponible con una suscripci\u00f3n"
   },
   "ribbon": {
     "font": "Fuente",
@@ -60,19 +75,27 @@
     "zoom_in": "Ampliar",
     "zoom_out": "Reducir",
     "zoom_reset": "Restablecer zoom (100 %)",
-    "page": "Página",
+    "page": "P\u00e1gina",
     "view": "Vista",
     "edit": "Editar",
     "open": "Abrir",
     "export_flat": "Exportar aplanado",
-    "insert_pdf": "Insertar PDF…",
-    "prev": "Página anterior",
-    "next": "Página siguiente",
+    "insert_pdf": "Insertar PDF\u2026",
+    "prev": "P\u00e1gina anterior",
+    "next": "P\u00e1gina siguiente",
     "rotate_left": "Girar a la izquierda",
     "rotate_right": "Girar a la derecha",
-    "delete_page": "Eliminar página",
+    "delete_page": "Eliminar p\u00e1gina",
     "undo": "Deshacer",
     "fit_width": "Ajustar ancho",
-    "fit_page": "Ajustar página"
+    "fit_page": "Ajustar p\u00e1gina",
+    "search": "Buscar",
+    "properties": "Propiedades",
+    "duplicate": "Duplicar p\u00e1gina",
+    "duplicated": "P\u00e1gina duplicada (p\u00e1gina {n})"
+  },
+  "common": {
+    "ok": "Aceptar",
+    "cancel": "Cancelar"
   }
 }

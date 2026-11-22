@@ -76,7 +76,9 @@ class _OpenDocument:
     rotations: dict[int, int] = field(default_factory=dict)
     deleted: set[int] = field(default_factory=set)
     extra_pdfs: list[str] = field(default_factory=list)
+    copies: list[int] = field(default_factory=list)
     annotations: list[Annotation] = field(default_factory=list)
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 def _pil_to_buffer(image: Image.Image) -> ImageBuffer:
@@ -282,7 +284,9 @@ class PypdfiumPdfEngine:
         Nombre total de pages (PDF insérés inclus, suppressions exclues).
         """
         extra = sum(len(PdfReader(p).pages) for p in session.extra_pdfs)
-        return session.base_page_count + extra - len(session.deleted)
+        return (
+            session.base_page_count + extra + len(session.copies) - len(session.deleted)
+        )
 
     def total_pages(self, document_id: str) -> int:
         """Return the live page count of a document (0 if unknown).
@@ -307,6 +311,8 @@ class PypdfiumPdfEngine:
             if local < count:
                 return extra_path, local
             local -= count
+        if local < len(session.copies):
+            return session.source_path, session.copies[local]
         msg = f"page index out of range: {index}"
         raise IndexError(msg)
 
@@ -374,6 +380,42 @@ class PypdfiumPdfEngine:
             return Err(f"cannot read {path}: {exc}")
         session.extra_pdfs.append(path)
         return Ok(count)
+
+    def duplicate_page(self, document_id: str, page_index: int) -> Result[int, str]:
+        """Duplicate a page (the copy is appended at the end of the document).
+
+        Duplique une page (la copie est ajoutée à la fin du document).
+        """
+        session = self._session(document_id)
+        if session is None:
+            return Err(f"unknown document: {document_id}")
+        if page_index in session.deleted or page_index >= self._total_pages(session):
+            return Err(f"invalid page index: {page_index}")
+        session.copies.append(page_index)
+        return Ok(self._total_pages(session))
+
+    def set_metadata(
+        self, document_id: str, metadata: dict[str, str]
+    ) -> Result[None, str]:
+        """Set document metadata (title, author, subject, keywords).
+
+        Définit les métadonnées du document (titre, auteur, sujet, mots-clés).
+        """
+        session = self._session(document_id)
+        if session is None:
+            return Err(f"unknown document: {document_id}")
+        session.metadata = dict(metadata)
+        return Ok(None)
+
+    def metadata(self, document_id: str) -> dict[str, str]:
+        """Return the session metadata (empty dict if unknown document).
+
+        Retourne les métadonnées de la session (dict vide si inconnu).
+        """
+        session = self._session(document_id)
+        if session is None:
+            return {}
+        return dict(session.metadata)
 
     def remove_last_annotation(self, document_id: str) -> Result[None, str]:
         """Undo: remove the most recently added annotation.
@@ -453,11 +495,23 @@ class PypdfiumPdfEngine:
         return tuple(session.annotations)
 
     def export(
-        self, document_id: str, destination_path: str, *, flatten: bool
+        self,
+        document_id: str,
+        destination_path: str,
+        *,
+        flatten: bool,
+        watermark: str | None = None,
+        password: str | None = None,
     ) -> Result[str, str]:
-        """Export the document as PDF with native annotations.
+        """Export the document as PDF with annotations and options.
 
-        Exporte le document en PDF avec des annotations natives.
+        Exporte le document en PDF avec annotations et options.
+
+        Includes native annotations, an optional per-page text watermark,
+        an optional AES-256 password, and document metadata.
+
+        Inclut les annotations natives, un filigrane texte optionnel par
+        page, un mot de passe AES-256 optionnel et les métadonnées.
         """
         session = self._session(document_id)
         if session is None:
@@ -469,44 +523,111 @@ class PypdfiumPdfEngine:
                 and not session.rotations
                 and not session.deleted
                 and not session.extra_pdfs
+                and not session.copies
             )
             if simple_copy and not flatten:
-                self._export_pdf_copy(session, destination_path)
+                writer, mapping = self._build_pdf_copy(session)
             elif session.is_pdf:
-                self._export_pdf_rebuild(session, destination_path, flatten)
+                writer, mapping = self._build_pdf_rebuild(session, flatten)
             else:
-                self._export_from_images(session, destination_path)
+                writer, mapping = self._build_from_images(session)
+            self._apply_annotations(writer, session, mapping)
+            self._apply_watermark(writer, mapping, watermark)
+            self._apply_metadata(writer, session)
+            self._write(writer, destination_path, password)
             return Ok(destination_path)
         except Exception as exc:
             return Err(f"export failed: {exc}")
 
-    def _export_pdf_copy(self, session: _OpenDocument, destination_path: str) -> None:
-        """Copy the source PDF and add the annotations natively.
+    def _write(
+        self, writer: PdfWriter, destination_path: str, password: str | None
+    ) -> None:
+        """Encrypt (AES-256) if a password is given, then write the file.
 
-        Copie le PDF source et ajoute les annotations nativement.
+        Chiffre (AES-256) si un mot de passe est fourni, puis écrit le
+        fichier.
+        """
+        if password:
+            writer.encrypt(password, algorithm="AES-256")
+        with Path(destination_path).open("wb") as handle:
+            writer.write(handle)
+
+    def _apply_metadata(self, writer: PdfWriter, session: _OpenDocument) -> None:
+        """Write session metadata (title/author/subject/keywords) to the PDF.
+
+        Écrit les métadonnées de la session (titre/auteur/sujet/mots-clés)
+        dans le PDF.
+        """
+        if session.metadata:
+            writer.add_metadata(
+                {
+                    "/Title": session.metadata.get("title", ""),
+                    "/Author": session.metadata.get("author", ""),
+                    "/Subject": session.metadata.get("subject", ""),
+                    "/Keywords": session.metadata.get("keywords", ""),
+                }
+            )
+
+    def _apply_watermark(
+        self,
+        writer: PdfWriter,
+        mapping: dict[int, int],
+        watermark: str | None,
+    ) -> None:
+        """Add a bottom-center text watermark annotation on every page.
+
+        Ajoute une annotation texte de filigrane en bas au centre de chaque
+        page.
+        """
+        if not watermark:
+            return
+        for new_index in range(len(writer.pages)):
+            page = writer.pages[new_index]
+            width = float(page.mediabox.width)
+            text_width = len(watermark) * 7.0
+            x = max(0.0, (width - text_width) / 2)
+            y = 24.0
+            annot = DictionaryObject()
+            annot[NameObject("/Type")] = NameObject("/Annot")
+            annot[NameObject("/Subtype")] = NameObject("/FreeText")
+            annot[NameObject("/Rect")] = ArrayObject(
+                [
+                    FloatObject(x),
+                    FloatObject(y),
+                    FloatObject(x + text_width),
+                    FloatObject(y + 14),
+                ]
+            )
+            annot[NameObject("/F")] = NumberObject(4)
+            annot[NameObject("/Contents")] = TextStringObject(watermark)
+            annot[NameObject("/DA")] = TextStringObject("/Helv 10 Tf 0.55 0.55 0.55 rg")
+            existing = page.get("/Annots")
+            array = existing if isinstance(existing, ArrayObject) else ArrayObject()
+            array.append(annot)
+            page[NameObject("/Annots")] = array
+
+    def _build_pdf_copy(
+        self, session: _OpenDocument
+    ) -> tuple[PdfWriter, dict[int, int]]:
+        """Copy the source PDF into a writer (identity page mapping).
+
+        Copie le PDF source dans un writer (index de pages identique).
         """
         reader = PdfReader(session.source_path)
         writer = PdfWriter()
         writer.append(reader)
         mapping = {i: i for i in range(session.base_page_count)}
-        self._apply_annotations(writer, session, mapping)
-        with Path(destination_path).open("wb") as handle:
-            writer.write(handle)
+        return writer, mapping
 
-    def _export_pdf_rebuild(
-        self,
-        session: _OpenDocument,
-        destination_path: str,
-        flatten: bool,
-    ) -> None:
-        """Rebuild the PDF page by page (rotations, deletions, inserts).
+    def _build_pdf_rebuild(
+        self, session: _OpenDocument, flatten: bool
+    ) -> tuple[PdfWriter, dict[int, int]]:
+        """Rebuild the PDF page by page (rotations, deletions, inserts, copies).
 
         Reconstruit le PDF page par page (rotations, suppressions,
-        insertions), ou aplati en images si `flatten`.
+        insertions, copies), ou aplati en images si `flatten`.
         """
-        total = session.base_page_count + sum(
-            len(PdfReader(p).pages) for p in session.extra_pdfs
-        )
+        total = self._total_pages(session) + len(session.deleted)
         kept: list[int] = [i for i in range(total) if i not in session.deleted]
         mapping = {old: new for new, old in enumerate(kept)}
         if flatten:
@@ -519,7 +640,9 @@ class PypdfiumPdfEngine:
             if not images:
                 msg = "no pages to export"
                 raise ValueError(msg)
-            tmp_pdf = Path(destination_path).with_suffix(".tmp.pdf")
+            tmp_pdf = Path(session.source_path).with_name(
+                f".tmp_export_{session.document_id[:8]}.pdf"
+            )
             images[0].save(
                 tmp_pdf,
                 save_all=True,
@@ -541,17 +664,14 @@ class PypdfiumPdfEngine:
                 if rotation:
                     page.rotate(rotation)
                 writer.add_page(page)
-        self._apply_annotations(writer, session, mapping)
-        with Path(destination_path).open("wb") as handle:
-            writer.write(handle)
+        return writer, mapping
 
-    def _export_from_images(
-        self, session: _OpenDocument, destination_path: str
-    ) -> None:
-        """Rebuild a PDF from page images, then add annotations.
+    def _build_from_images(
+        self, session: _OpenDocument
+    ) -> tuple[PdfWriter, dict[int, int]]:
+        """Rebuild a PDF from page images (image-sourced documents).
 
-        Reconstruit un PDF à partir des images des pages, puis ajoute les
-        annotations.
+        Reconstruit un PDF à partir des images des pages (documents image).
         """
         kept = [i for i in range(session.base_page_count) if i not in session.deleted]
         images = [
@@ -562,7 +682,9 @@ class PypdfiumPdfEngine:
         if not images:
             msg = "no page images available for export"
             raise ValueError(msg)
-        tmp_pdf = Path(destination_path).with_suffix(".tmp.pdf")
+        tmp_pdf = Path(session.source_path).with_name(
+            f".tmp_export_{session.document_id[:8]}.pdf"
+        )
         images[0].save(
             tmp_pdf,
             save_all=True,
@@ -572,11 +694,9 @@ class PypdfiumPdfEngine:
         reader = PdfReader(str(tmp_pdf))
         writer = PdfWriter()
         writer.append(reader)
-        mapping = {old: new for new, old in enumerate(kept)}
-        self._apply_annotations(writer, session, mapping)
-        with Path(destination_path).open("wb") as handle:
-            writer.write(handle)
         tmp_pdf.unlink(missing_ok=True)
+        mapping = {old: new for new, old in enumerate(kept)}
+        return writer, mapping
 
     def _apply_annotations(
         self,
@@ -590,16 +710,27 @@ class PypdfiumPdfEngine:
         writer (avec recalcul d'index après suppressions).
         """
         by_page: dict[int, list[DictionaryObject]] = {}
+        total = self._total_pages(session) + len(session.deleted)
+        resolved = [self._resolve(session, i) for i in range(total)]
         for annotation in session.annotations:
-            new_index = mapping.get(annotation.page_index)
-            if new_index is None:
+            if annotation.page_index >= total:
                 continue
-            page = writer.pages[new_index]
-            width = float(page.mediabox.width)
-            height = float(page.mediabox.height)
-            by_page.setdefault(new_index, []).extend(
-                _annotation_to_pdf_dicts(annotation, width, height)
-            )
+            # An annotation follows every copy of its source page.
+            #
+            # Une annotation suit chaque copie de sa page source.
+            target = resolved[annotation.page_index]
+            for global_index, source in enumerate(resolved):
+                if global_index in session.deleted:
+                    continue
+                new_index = mapping.get(global_index)
+                if new_index is None or source != target:
+                    continue
+                page = writer.pages[new_index]
+                width = float(page.mediabox.width)
+                height = float(page.mediabox.height)
+                by_page.setdefault(new_index, []).extend(
+                    _annotation_to_pdf_dicts(annotation, width, height)
+                )
         for page_index, annots in by_page.items():
             page = writer.pages[page_index]
             existing = page.get("/Annots")

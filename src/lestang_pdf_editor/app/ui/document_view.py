@@ -53,12 +53,9 @@ def build_document_view(state: AppState) -> None:
     page.title = state.t("app_name")
 
     open_picker = ft.FilePicker(on_result=lambda e: _on_pick_open(state, e))
-    save_picker = ft.FilePicker(on_result=lambda e: _on_save(state, e, flatten=False))
-    save_flat_picker = ft.FilePicker(
-        on_result=lambda e: _on_save(state, e, flatten=True)
-    )
+    save_picker = ft.FilePicker(on_result=lambda e: _on_save(state, e))
     insert_picker = ft.FilePicker(on_result=lambda e: _on_insert(state, e))
-    page.overlay.extend([open_picker, save_picker, save_flat_picker, insert_picker])
+    page.overlay.extend([open_picker, save_picker, insert_picker])
 
     thumbnails = ft.ListView(expand=False, width=140, spacing=8)
     canvas_stack = ft.Stack()
@@ -82,6 +79,39 @@ def build_document_view(state: AppState) -> None:
     )
     status = ft.Text("")
     zoom_label = ft.Text("100%")
+    search_count = ft.Text("")
+    search_field: ft.TextField = ft.TextField(
+        hint_text=state.t("doc.search_hint"),
+        width=260,
+        on_submit=lambda _e: _run_search(
+            state, search_field.value or "", search_count, refresh
+        ),
+    )
+    search_bar = ft.Container(
+        content=ft.Row(
+            controls=[
+                ft.Icon(ft.Icons.SEARCH),
+                search_field,
+                ft.IconButton(
+                    icon=ft.Icons.ARROW_FORWARD,
+                    tooltip=state.t("ribbon.next"),
+                    on_click=lambda _e: (
+                        _run_search(
+                            state, search_field.value or "", search_count, refresh
+                        )
+                        if not state._search_matches
+                        else _do_search(state, refresh)
+                    ),
+                ),
+                search_count,
+            ],
+            spacing=8,
+        ),
+        padding=6,
+        bgcolor="#FFFFFF",
+        border=ft.border.only(bottom=ft.BorderSide(1, "#B0BEC5")),
+        visible=False,
+    )
 
     def refresh() -> None:
         nonlocal gesture
@@ -104,16 +134,12 @@ def build_document_view(state: AppState) -> None:
     def snack(message: str) -> None:
         show_snackbar(page, message)
 
-    actions: dict[str, Callable[[], None]] = {
+    actions: dict[str, Callable[..., None]] = {
         "open": lambda: open_picker.pick_files(
             allowed_extensions=["pdf", "png", "jpg", "jpeg", "tif", "tiff", "bmp"]
         ),
-        "export": lambda: save_picker.save_file(
-            file_name="document.pdf", allowed_extensions=["pdf"]
-        ),
-        "export_flat": lambda: save_flat_picker.save_file(
-            file_name="document_flat.pdf", allowed_extensions=["pdf"]
-        ),
+        "export": lambda: _open_export_dialog(state, save_picker, flatten=False),
+        "export_flat": lambda: _open_export_dialog(state, save_picker, flatten=True),
         "insert_pdf": lambda: insert_picker.pick_files(allowed_extensions=["pdf"]),
         "prev": state.prev_page,
         "next": state.next_page,
@@ -128,7 +154,12 @@ def build_document_view(state: AppState) -> None:
         "fit_page": lambda: _fit(state, refresh, "page"),
         "enhance": lambda: _enhance(state, refresh, snack),
         "ocr": lambda: _run_ocr(state, ocr_text, status, refresh, snack),
+        "search": lambda: _toggle_search(state, search_bar, refresh),
+        "duplicate": lambda: _duplicate(state, refresh, snack),
+        "properties": lambda: _open_properties_dialog(state),
+        "stamp": lambda key: _apply_stamp(state, key, refresh, snack),
     }
+    state.pending_export = {}
 
     def on_scroll(event: ft.ScrollEvent) -> None:
         _on_scroll(state, event, refresh)
@@ -179,7 +210,7 @@ def build_document_view(state: AppState) -> None:
         bgcolor="#FFFFFF",
         border=ft.border.only(top=ft.BorderSide(1, "#B0BEC5")),
     )
-    content = ft.Column(controls=[ribbon, body, bottom_bar], expand=True)
+    content = ft.Column(controls=[ribbon, search_bar, body, bottom_bar], expand=True)
 
     def go_home() -> None:
         from lestang_pdf_editor.app.ui.home import build_home_view
@@ -531,6 +562,10 @@ def _on_keyboard(
     if state.ctrl_pressed:
         if key in ("o",):
             actions["open"]()
+        elif key in ("f",):
+            actions["search"]()
+        elif key in ("d",):
+            actions["duplicate"]()
         elif key in ("e",):
             actions["export"]()
         elif key in ("z",):
@@ -690,22 +725,230 @@ def _on_insert(state: AppState, event: ft.FilePickerResultEvent) -> None:
         show_message(state.page, "Error", result.error)
 
 
-def _on_save(
-    state: AppState, event: ft.FilePickerResultEvent, *, flatten: bool
-) -> None:
-    """Handle the save-file result: export the document as PDF.
+def _on_save(state: AppState, event: ft.FilePickerResultEvent) -> None:
+    """Handle the save-file result: export with the pending dialog options.
 
-    Gère le résultat du sélecteur de sauvegarde : exporte le document en
-    PDF.
+    Gère le résultat du sélecteur de sauvegarde : exporte avec les options
+    de la boîte de dialogue d'export.
     """
-    if not event.path:
+    if not event.path or state.document is None:
         return
-    if state.document is None:
-        return
-    result = state.pdf_engine.export(
-        state.document.document_id, event.path, flatten=flatten
+    pending = state.pending_export
+    result = state.export_pdf(
+        event.path,
+        flatten=bool(pending.get("flatten", False)),
+        watermark=str(pending.get("watermark") or "") or None,
+        password=str(pending.get("password") or "") or None,
     )
     if isinstance(result, Ok):
         show_snackbar(state.page, f"Saved: {event.path}")
     else:
         show_message(state.page, "Error", result.error)
+
+
+def _toggle_search(
+    state: AppState, search_bar: ft.Container, refresh: Callable[[], None]
+) -> None:
+    """Show/hide the search bar (Ctrl+F or ribbon button).
+
+    Affiche/masque la barre de recherche (Ctrl+F ou bouton du ruban).
+    """
+    search_bar.visible = not search_bar.visible
+    refresh()
+
+
+def _run_search(
+    state: AppState,
+    query: str,
+    search_count: ft.Text,
+    refresh: Callable[[], None],
+) -> None:
+    """Run the search over all pages (OCR on the fly) and show the count.
+
+    Lance la recherche sur toutes les pages (OCR à la volée) et affiche le
+    nombre de résultats.
+    """
+    state._search_query = query
+    state._search_matches = state.search(query)
+    state._search_position = -1
+    search_count.value = state.t("doc.search_results").format(
+        n=len(state._search_matches)
+    )
+    refresh()
+
+
+def _do_search(state: AppState, refresh: Callable[[], None]) -> None:
+    """Jump to the next search match (cycling).
+
+    Saute au résultat de recherche suivant (en boucle).
+    """
+    matches = state._search_matches
+    if not matches:
+        return
+    position = (state._search_position + 1) % len(matches)
+    state._search_position = position
+    state.selected_page = matches[position]
+    state._notify()
+    refresh()
+
+
+def _duplicate(
+    state: AppState, refresh: Callable[[], None], snack: Callable[[str], None]
+) -> None:
+    """Duplicate the current page (Ctrl+D / ribbon).
+
+    Duplique la page courante (Ctrl+D / ruban).
+    """
+    result = state.duplicate_page()
+    if isinstance(result, Err):
+        snack(result.error)
+    else:
+        snack(state.t("ribbon.duplicated").format(n=result.value))
+    refresh()
+
+
+def _apply_stamp(
+    state: AppState,
+    key: str,
+    refresh: Callable[[], None],
+    snack: Callable[[str], None],
+) -> None:
+    """Apply a preset stamp (text + frame) at the center of the page.
+
+    Applique un tampon prédéfini (texte + cadre) au centre de la page.
+    """
+    from lestang_pdf_editor.app.ui.ribbon import STAMPS
+
+    if key not in STAMPS or state.document is None:
+        return
+    label_key, color = STAMPS[key]
+    label = state.t(label_key)
+    state.add_annotation(
+        TextAnnotation(
+            page_index=state.selected_page,
+            rect=(0.35, 0.45, 0.3, 0.08),
+            content=label,
+            font_size_pt=24,
+            color=color,
+            bold=True,
+            author=state.author_name(),
+            created_at=state.new_timestamp(),
+        )
+    )
+    state.add_annotation(
+        RectangleAnnotation(
+            page_index=state.selected_page,
+            rect=(0.34, 0.44, 0.32, 0.1),
+            stroke_color=color,
+            stroke_width_pt=2,
+        )
+    )
+    snack(label)
+    refresh()
+
+
+def _close(page: ft.Page, dialog: ft.AlertDialog) -> None:
+    """Close a dialog and refresh the page.
+
+    Ferme une boîte de dialogue et rafraîchit la page.
+    """
+    dialog.open = False
+    page.update()
+
+
+def _open_export_dialog(
+    state: AppState, save_picker: ft.FilePicker, *, flatten: bool
+) -> None:
+    """Open the export-options dialog, then the save-file picker.
+
+    Ouvre la boîte d'options d'export (filigrane, mot de passe, aplati),
+    puis le sélecteur de fichier.
+    """
+    page = state.page
+    watermark_field = ft.TextField(label=state.t("doc.export_watermark"), width=320)
+    password_field = ft.TextField(
+        label=state.t("doc.export_password"), password=True, width=320
+    )
+    flatten_check = ft.Checkbox(label=state.t("doc.export_flatten"), value=flatten)
+    dialog: ft.AlertDialog
+
+    def confirm(_e: ft.ControlEvent) -> None:
+        state.pending_export = {
+            "flatten": bool(flatten_check.value),
+            "watermark": watermark_field.value or "",
+            "password": password_field.value or "",
+        }
+        dialog.open = False
+        page.update()
+        save_picker.save_file(file_name="document.pdf", allowed_extensions=["pdf"])
+
+    dialog = ft.AlertDialog(
+        title=ft.Text(state.t("doc.export_options")),
+        content=ft.Column(
+            controls=[watermark_field, password_field, flatten_check], tight=True
+        ),
+        actions=[
+            ft.TextButton(text=state.t("common.ok"), on_click=confirm),
+            ft.TextButton(
+                text=state.t("common.cancel"), on_click=lambda _e: _close(page, dialog)
+            ),
+        ],
+    )
+    page.overlay.append(dialog)
+    dialog.open = True
+    page.update()
+
+
+def _open_properties_dialog(state: AppState) -> None:
+    """Open the document-properties dialog (metadata + PDF version).
+
+    Ouvre la boîte des propriétés du document (métadonnées + version PDF).
+    """
+    page = state.page
+    current = state.metadata()
+    title_field = ft.TextField(
+        label=state.t("doc.meta_title"), value=current.get("title", ""), width=320
+    )
+    author_field = ft.TextField(
+        label=state.t("doc.meta_author"), value=current.get("author", ""), width=320
+    )
+    subject_field = ft.TextField(
+        label=state.t("doc.meta_subject"), value=current.get("subject", ""), width=320
+    )
+    keywords_field = ft.TextField(
+        label=state.t("doc.meta_keywords"), value=current.get("keywords", ""), width=320
+    )
+    info = ft.Text(
+        f"{state.pdf_version_label()} — {state.page_count()} "
+        f"{state.t('ribbon.page').lower()}s"
+    )
+    dialog: ft.AlertDialog
+
+    def confirm(_e: ft.ControlEvent) -> None:
+        state.set_metadata(
+            {
+                "title": title_field.value or "",
+                "author": author_field.value or "",
+                "subject": subject_field.value or "",
+                "keywords": keywords_field.value or "",
+            }
+        )
+        dialog.open = False
+        page.update()
+
+    dialog = ft.AlertDialog(
+        title=ft.Text(state.t("doc.properties")),
+        content=ft.Column(
+            controls=[info, title_field, author_field, subject_field, keywords_field],
+            tight=True,
+        ),
+        actions=[
+            ft.TextButton(text=state.t("common.ok"), on_click=confirm),
+            ft.TextButton(
+                text=state.t("common.cancel"), on_click=lambda _e: _close(page, dialog)
+            ),
+        ],
+    )
+    page.overlay.append(dialog)
+    dialog.open = True
+    page.update()

@@ -69,8 +69,21 @@ l'UI (`app/ui/`) ne parle au métier que via `AppState` / les ports de
   l'utilisateur + détection de langue (langdetect).
 - Thèmes clair/sombre/système (persistés), snackbars, dialogues, fichiers
   récents persistés, réglages persistants entre mises à jour.
-- Raccourcis : Ctrl+O ouvrir, Ctrl+E exporter, Ctrl+Z annuler, Ctrl+0 zoom,
-  Ctrl +/-, Ctrl+molette, PgUp/PgDn.
+- Recherche plein texte dans le document (Ctrl+F ou bouton loupe) : l'OCR est
+  lancé à la volée sur les pages non encore reconnues, le nombre de résultats
+  s'affiche et chaque appui suivant saute au résultat suivant (en boucle).
+- Duplication de la page courante (Ctrl+D ou bouton copier) : la copie est
+  ajoutée à la fin et hérite des annotations de la page source.
+- Tampons prédéfinis (menu « Tampon » : Approuvé / Confidentiel / Brouillon) :
+  texte + cadre coloré déposés au centre de la page.
+- Export avancé (Ctrl+E) : boîte de dialogue avec filigrane texte sur chaque
+  page, mot de passe AES-256 optionnel, et option « aplatir » (annotations
+  fusionnées dans la page).
+- Propriétés du document (bouton info) : métadonnées (titre, auteur, sujet,
+  mots-clés) modifiables + affichage de la version PDF et du nombre de pages.
+- Raccourcis : Ctrl+O ouvrir, Ctrl+E exporter, Ctrl+Z annuler, Ctrl+F
+  rechercher, Ctrl+D dupliquer, Ctrl+0 zoom, Ctrl +/-, Ctrl+molette,
+  PgUp/PgDn.
 - Internationalisation : en/fr/es/zh ; le support droite-à-gauche (arabe,
   hébreu) est prévu par la structure (propriétés directionnelles) pour plus
   tard.

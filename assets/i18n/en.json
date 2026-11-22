@@ -1,8 +1,8 @@
 {
   "app_name": "Doc Scan PDF Editor",
   "home": {
-    "open_file": "Open a PDF or image…",
-    "welcome": "Scan, enhance, OCR, annotate and export PDFs — 100% on your device.",
+    "open_file": "Open a PDF or image\u2026",
+    "welcome": "Scan, enhance, OCR, annotate and export PDFs \u2014 100% on your device.",
     "recent": "Recent files"
   },
   "doc": {
@@ -18,7 +18,22 @@
     "add_text": "Add text",
     "enhanced": "Image enhanced",
     "validate": "Validate (Enter)",
-    "annotations": "Annotations"
+    "annotations": "Annotations",
+    "search_hint": "Search in document\u2026",
+    "search_results": "{n} result(s)",
+    "export_options": "Export options",
+    "export_watermark": "Watermark text (optional)",
+    "export_password": "Password (AES-256, optional)",
+    "export_flatten": "Flatten annotations into the page",
+    "properties": "Document properties",
+    "meta_title": "Title",
+    "meta_author": "Author",
+    "meta_subject": "Subject",
+    "meta_keywords": "Keywords",
+    "stamp": "Stamp",
+    "stamp_approved": "APPROVED",
+    "stamp_confidential": "CONFIDENTIAL",
+    "stamp_draft": "DRAFT"
   },
   "settings": {
     "title": "Settings",
@@ -65,7 +80,7 @@
     "edit": "Edit",
     "open": "Open",
     "export_flat": "Export flattened",
-    "insert_pdf": "Insert PDF…",
+    "insert_pdf": "Insert PDF\u2026",
     "prev": "Previous page",
     "next": "Next page",
     "rotate_left": "Rotate left",
@@ -73,6 +88,14 @@
     "delete_page": "Delete page",
     "undo": "Undo",
     "fit_width": "Fit width",
-    "fit_page": "Fit page"
+    "fit_page": "Fit page",
+    "search": "Search",
+    "properties": "Properties",
+    "duplicate": "Duplicate page",
+    "duplicated": "Page duplicated (page {n})"
+  },
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel"
   }
 }

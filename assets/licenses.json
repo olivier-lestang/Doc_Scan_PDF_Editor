@@ -20,16 +20,22 @@
       "copyright": "Kenneth Reitz"
     },
     {
+      "name": "cffi",
+      "version": "2.1.1",
+      "license": "MIT-0",
+      "copyright": "Armin Rigo, Maciej Fijalkowski"
+    },
+    {
       "name": "coverage",
       "version": "7.17.4",
       "license": "Apache-2.0",
       "copyright": "Ned Batchelder and many others"
     },
     {
-      "name": "lestang-pdf-editor",
-      "version": "0.1.0",
-      "license": "MIT",
-      "copyright": "Olivier Lestang"
+      "name": "cryptography",
+      "version": "50.0.2",
+      "license": "Apache-2.0 OR BSD-3-Clause",
+      "copyright": ""
     },
     {
       "name": "flatbuffers",
@@ -39,9 +45,9 @@
     },
     {
       "name": "flet",
-      "version": "1.1.2",
-      "license": "Apache-2.0",
-      "copyright": ""
+      "version": "0.28.3",
+      "license": "Apache Software License",
+      "copyright": "Appveyor Systems Inc."
     },
     {
       "name": "h11",
@@ -80,15 +86,15 @@
       "copyright": "Michal Mimino Danilak"
     },
     {
+      "name": "lestang-pdf-editor",
+      "version": "0.1.0",
+      "license": "MIT",
+      "copyright": "Olivier Lestang"
+    },
+    {
       "name": "librt",
       "version": "0.17.0",
       "license": "MIT",
-      "copyright": ""
-    },
-    {
-      "name": "msgpack",
-      "version": "1.2.4",
-      "license": "Apache-2.0",
       "copyright": ""
     },
     {
@@ -111,7 +117,7 @@
     },
     {
       "name": "oauthlib",
-      "version": "4.0.1",
+      "version": "3.3.1",
       "license": "BSD-3-Clause",
       "copyright": "The OAuthlib Community"
     },
@@ -174,6 +180,12 @@
       "version": "1.4.0",
       "license": "OSI Approved",
       "copyright": "Angus Johnson, Maxime Chalton, Lukas Treyer, Gregor Ratajc"
+    },
+    {
+      "name": "pycparser",
+      "version": "3.12",
+      "license": "BSD-3-Clause",
+      "copyright": ""
     },
     {
       "name": "Pygments",

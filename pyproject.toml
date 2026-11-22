@@ -8,6 +8,7 @@ license = { text = "MIT" }
 authors = [{ name = "Olivier Lestang" }]
 keywords = ["pdf", "scanner", "ocr", "offline", "annotation", "document"]
 dependencies = [
+    "cryptography>=43",  # AES-256 PDF encryption (Apache-2.0/BSD), used by pypdf
     "flet==0.28.3",
     "langdetect>=1.0.9",
     "numpy>=2.0",

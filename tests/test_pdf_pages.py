@@ -114,3 +114,68 @@ def test_undo_removes_last_annotation(tmp_path: Path) -> None:
     assert len(remaining) == 1
     assert isinstance(remaining[0], TextAnnotation)
     assert remaining[0].content == "one"
+
+
+def test_duplicate_page_appends_copies_with_annotations(tmp_path: Path) -> None:
+    """Duplicating a page appends a copy; its annotations follow the source.
+
+    Dupliquer une page ajoute une copie ; ses annotations suivent la source.
+    """
+    pdf = tmp_path / "doc.pdf"
+    make_pdf(pdf, pages=2)
+    engine = PypdfiumPdfEngine()
+    document = engine.open(str(pdf))
+    assert isinstance(document, Ok)
+    doc_id = document.value.document_id
+    engine.add_annotation(
+        doc_id,
+        TextAnnotation(page_index=0, rect=(0.1, 0.1, 0.4, 0.1), content="on-page-0"),
+    )
+    duplicated = engine.duplicate_page(doc_id, 0)
+    assert isinstance(duplicated, Ok) and duplicated.value == 3
+    assert engine.total_pages(doc_id) == 3
+
+    out = tmp_path / "out.pdf"
+    assert isinstance(engine.export(doc_id, str(out), flatten=False), Ok)
+    reader = PdfReader(str(out))
+    assert len(reader.pages) == 3
+    for index in (0, 2):
+        annots = reader.pages[index].get("/Annots") or []
+        contents = [str(a.get_object()["/Contents"]) for a in annots]
+        assert "on-page-0" in contents
+    assert not (reader.pages[1].get("/Annots"))
+
+
+def test_export_watermark_password_and_metadata(tmp_path: Path) -> None:
+    """Watermark on every page, AES-256 password, metadata roundtrip.
+
+    Filigrane sur chaque page, mot de passe AES-256, aller-retour des
+    métadonnées.
+    """
+    pdf = tmp_path / "doc.pdf"
+    make_pdf(pdf, pages=2)
+    engine = PypdfiumPdfEngine()
+    document = engine.open(str(pdf))
+    assert isinstance(document, Ok)
+    doc_id = document.value.document_id
+    assert isinstance(
+        engine.set_metadata(doc_id, {"title": "Rapport", "author": "JD"}), Ok
+    )
+    assert engine.metadata(doc_id)["title"] == "Rapport"
+
+    out = tmp_path / "secret.pdf"
+    result = engine.export(
+        doc_id, str(out), flatten=False, watermark="DRAFT", password="s3cret!"
+    )
+    assert isinstance(result, Ok)
+    reader = PdfReader(str(out))
+    assert reader.is_encrypted
+    assert reader.decrypt("s3cret!") != 0
+    assert len(reader.pages) == 2
+    for page in reader.pages:
+        annots = page.get("/Annots") or []
+        contents = [str(a.get_object().get("/Contents", "")) for a in annots]
+        assert "DRAFT" in contents
+    assert reader.metadata is not None
+    assert reader.metadata.title == "Rapport"
+    assert reader.metadata.author == "JD"
