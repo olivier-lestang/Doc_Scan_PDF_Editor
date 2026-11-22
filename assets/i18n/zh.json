@@ -25,7 +25,9 @@
     "dpi_auto": "自动",
     "ocr_languages": "OCR 语言",
     "language": "语言",
-    "legal": "法律"
+    "legal": "法律",
+    "first_name": "名",
+    "last_name": "姓"
   },
   "legal": {
     "title": "法律",

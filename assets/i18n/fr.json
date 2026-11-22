@@ -25,7 +25,9 @@
     "dpi_auto": "Automatique",
     "ocr_languages": "Langues OCR",
     "language": "Langue",
-    "legal": "Légal"
+    "legal": "Légal",
+    "first_name": "Prénom",
+    "last_name": "Nom"
   },
   "legal": {
     "title": "Légal",

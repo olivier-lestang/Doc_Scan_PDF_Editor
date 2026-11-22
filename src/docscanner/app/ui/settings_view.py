@@ -54,6 +54,31 @@ def build_settings_view(state: AppState) -> None:
         ),
     )
 
+    def save_name(_e: ft.ControlEvent) -> None:
+        from dataclasses import replace
+
+        state.settings = replace(
+            state.settings,
+            first_name=first_name_field.value or "",
+            last_name=last_name_field.value or "",
+        )
+        state.settings_repo.save(state.settings)
+
+    first_name_field = ft.TextField(
+        label=state.t("settings.first_name"),
+        value=state.settings.first_name,
+        width=200,
+        on_submit=save_name,
+        on_blur=save_name,
+    )
+    last_name_field = ft.TextField(
+        label=state.t("settings.last_name"),
+        value=state.settings.last_name,
+        width=200,
+        on_submit=save_name,
+        on_blur=save_name,
+    )
+
     ocr_checkboxes = [
         ft.Checkbox(
             label=lang.names.get(state.settings.language, lang.names["en"]),
@@ -94,6 +119,7 @@ def build_settings_view(state: AppState) -> None:
     body = ft.Column(
         controls=[
             ft.Text(state.t("settings.title"), size=20, weight=ft.FontWeight.BOLD),
+            ft.Row(controls=[first_name_field, last_name_field], spacing=8),
             language_dropdown,
             dpi_dropdown,
             ft.Text(state.t("settings.ocr_languages"), weight=ft.FontWeight.BOLD),
