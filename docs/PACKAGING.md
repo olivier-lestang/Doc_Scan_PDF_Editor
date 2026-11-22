@@ -9,8 +9,9 @@ reinstalling the newer installer.
 
 ```bash
 uv sync
-# the flet[all] extra provides the Flutter runtime binaries (not locked):
-uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3" "flet-web==0.28.3"
+# the pinned "desktop" group provides the Flutter runtime binaries, with
+# exact versions taken from uv.lock:
+uv sync --frozen --group desktop
 ```
 
 ## Windows 10/11 (tested on Windows 11)
@@ -18,10 +19,10 @@ uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3" "flet-we
 On a Windows machine (x64 or ARM64):
 
 ```powershell
-uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3" "flet-web==0.28.3"
-uv run flet pack src/docscanner/app/main.py ^
-  --name DocScanPDFEditor ^
-  --product_name "Doc Scan PDF Editor" ^
+uv sync --frozen --group desktop  # exact versions from uv.lock (incl. desktop group)
+uv run flet pack src/lestang_pdf_editor/app/main.py ^
+  --name LestangPdfEditor ^
+  --product_name "Lestang PDF Editor" ^
   --company_name "Olivier Lestang" ^
   --file_description "Offline document scanner and PDF editor"
 ```
@@ -34,10 +35,10 @@ On a Mac (Apple Silicon or Intel; build universal with an x86_64 runner
 or use `--arch`):
 
 ```bash
-uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3" "flet-web==0.28.3"
-uv run flet pack src/docscanner/app/main.py \
-  --name DocScanPDFEditor \
-  --product_name "Doc Scan PDF Editor" \
+uv sync --frozen --group desktop  # exact versions from uv.lock (incl. desktop group)
+uv run flet pack src/lestang_pdf_editor/app/main.py \
+  --name LestangPdfEditor \
+  --product_name "Lestang PDF Editor" \
   --company_name "Olivier Lestang" \
   --macos
 ```
@@ -50,10 +51,10 @@ distribution.
 On Linux (x64 or aarch64):
 
 ```bash
-uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3" "flet-web==0.28.3"
-uv run flet pack src/docscanner/app/main.py \
-  --name doc-scan-pdf-editor \
-  --product_name "Doc Scan PDF Editor" \
+uv sync --frozen --group desktop  # exact versions from uv.lock (incl. desktop group)
+uv run flet pack src/lestang_pdf_editor/app/main.py \
+  --name lestang-pdf-editor \
+  --product_name "Lestang PDF Editor" \
   --company_name "Olivier Lestang" \
   --linux
 ```

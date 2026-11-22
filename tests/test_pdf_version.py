@@ -3,7 +3,7 @@
 Tests de la détection de version PDF et de la matrice de support.
 """
 
-from docscanner.domain.entities.document import (
+from lestang_pdf_editor.domain.entities.document import (
     detect_pdf_version,
     support_level,
 )

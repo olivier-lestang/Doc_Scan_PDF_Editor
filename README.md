@@ -1,4 +1,4 @@
-# Doc Scan PDF Editor
+# Lestang PDF Editor
 
 Offline document scanner and PDF editor: scan, straighten, enhance, OCR
 (in several user-selectable languages), annotate (text with font/size,
@@ -20,7 +20,7 @@ reinstalling the downloaded installer.
 Python-first core (Python 3.12+), clean architecture, feature-first layout:
 
 ```
-src/docscanner/
+src/lestang_pdf_editor/
 ├── core/       # result types, settings model, feature flags, image buffer
 ├── domain/     # entities, ports (protocols), use-case services (pure Python)
 ├── data/       # platform implementations and offline stubs
@@ -53,9 +53,9 @@ verb-noun names.
 
 ```bash
 uv sync
-# desktop runtime needs the flet[all] extra (Flutter binaries), not locked:
-uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3" "flet-web==0.28.3"
-uv run flet run src/docscanner/app/main.py
+# desktop runtime needs the pinned "desktop" group (Flutter binaries), installed from uv.lock:
+uv sync --frozen --group desktop  # exact versions from uv.lock (incl. desktop group)
+uv run flet run src/lestang_pdf_editor/app/main.py
 ```
 
 Features in the desktop v1: open PDF (any supported version) or image,
@@ -93,11 +93,11 @@ code .        # or File > Open Folder in VS Code
 Recommended extensions: **Python**, **Pylance**, **Ruff** (all from the
 Marketplace). The `.vscode/settings.json` in the repo points the
 interpreter at `.venv` and enables pytest + Ruff. To launch the app from
-VS Code: install the pinned flet runtime packages into the venv first
-(`uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3"
-"flet-web==0.28.3"`), then press F5 with the « Doc Scan PDF Editor
-(flet run) » configuration (see `.vscode/launch.json`), or use the
-integrated terminal with `uv run flet run src/docscanner/app/main.py`.
+VS Code: install the pinned desktop group first
+(`uv sync --frozen --group desktop`), then press F5 with the
+« Lestang PDF Editor (flet run) » configuration (see
+`.vscode/launch.json`), or use the integrated terminal with
+`uv run flet run src/lestang_pdf_editor/app/main.py`.
 
 ## Licensing
 

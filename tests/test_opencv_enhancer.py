@@ -5,9 +5,9 @@ Tests du pipeline d'amélioration en un clic OpenCV.
 
 import pytest
 
-from docscanner.core.image_buffer import ImageBuffer
-from docscanner.core.result import Ok
-from docscanner.data.vision.opencv_enhancer import OpenCvEnhancer
+from lestang_pdf_editor.core.image_buffer import ImageBuffer
+from lestang_pdf_editor.core.result import Ok
+from lestang_pdf_editor.data.vision.opencv_enhancer import OpenCvEnhancer
 
 cv2 = pytest.importorskip("cv2", exc_type=ImportError)
 np = pytest.importorskip("numpy")

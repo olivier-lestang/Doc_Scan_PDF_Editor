@@ -6,7 +6,7 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/.venv/Scripts/flet",
-      "args": ["run", "src/docscanner/app/main.py"],
+      "args": ["run", "src/lestang_pdf_editor/app/main.py"],
       "console": "integratedTerminal",
       "justMyCode": false
     },

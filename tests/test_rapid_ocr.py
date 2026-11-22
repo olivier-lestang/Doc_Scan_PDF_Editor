@@ -5,9 +5,9 @@ Test du moteur OCR embarqué RapidOCR sur une image de texte rendue.
 
 import pytest
 
-from docscanner.core.image_buffer import ImageBuffer
-from docscanner.core.result import Ok
-from docscanner.data.ocr.rapid_ocr_engine import RapidOcrEngine
+from lestang_pdf_editor.core.image_buffer import ImageBuffer
+from lestang_pdf_editor.core.result import Ok
+from lestang_pdf_editor.data.ocr.rapid_ocr_engine import RapidOcrEngine
 
 pytest.importorskip("rapidocr_onnxruntime", exc_type=ImportError)
 Image = pytest.importorskip("PIL.Image")

@@ -8,16 +8,16 @@ from dataclasses import dataclass
 
 import pytest
 
-from docscanner.core.result import Ok, Result
-from docscanner.data.auth.unauthenticated_auth_repository import (
+from lestang_pdf_editor.core.result import Ok, Result
+from lestang_pdf_editor.data.auth.unauthenticated_auth_repository import (
     AuthUnavailableError,
     UnauthenticatedAuthRepository,
 )
-from docscanner.data.licensing.offline_license_manager import (
+from lestang_pdf_editor.data.licensing.offline_license_manager import (
     OfflineLicenseManager,
 )
-from docscanner.domain.ports.licensing import Entitlement
-from docscanner.domain.ports.signature_provider import (
+from lestang_pdf_editor.domain.ports.licensing import Entitlement
+from lestang_pdf_editor.domain.ports.signature_provider import (
     SignatureProviderRegistry,
 )
 

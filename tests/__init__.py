@@ -1,4 +1,4 @@
-"""Test suite for docscanner.
+"""Test suite for lestang_pdf_editor.
 
-Suite de tests de docscanner.
+Suite de tests de lestang_pdf_editor.
 """

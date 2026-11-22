@@ -38,4 +38,4 @@ jobs:
 
       - name: Tests
         if: hashFiles('pyproject.toml', 'uv.lock') != ''
-        run: uv run pytest --cov=docscanner --cov-report=term-missing
+        run: uv run pytest --cov=lestang_pdf_editor --cov-report=term-missing

@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 from pypdf import PdfReader, PdfWriter
 
-from docscanner.core.result import Ok
-from docscanner.data.pdf.pypdfium_engine import PypdfiumPdfEngine
-from docscanner.domain.entities.annotation import TextAnnotation
+from lestang_pdf_editor.core.result import Ok
+from lestang_pdf_editor.data.pdf.pypdfium_engine import PypdfiumPdfEngine
+from lestang_pdf_editor.domain.entities.annotation import TextAnnotation
 
 pytest.importorskip("pypdfium2")
 
@@ -85,7 +85,7 @@ def test_delete_last_page_is_refused(tmp_path: Path) -> None:
     engine = PypdfiumPdfEngine()
     document = engine.open(str(pdf))
     assert isinstance(document, Ok)
-    from docscanner.core.result import Err
+    from lestang_pdf_editor.core.result import Err
 
     result = engine.delete_page(document.value.document_id, 0)
     assert isinstance(result, Err)

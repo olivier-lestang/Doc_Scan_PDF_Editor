@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 from pypdf import PdfReader, PdfWriter
 
-from docscanner.app.state import AppState
-from docscanner.core.result import Ok
-from docscanner.domain.entities.annotation import TextAnnotation
+from lestang_pdf_editor.app.state import AppState
+from lestang_pdf_editor.core.result import Ok
+from lestang_pdf_editor.domain.entities.annotation import TextAnnotation
 
 pytest.importorskip("pypdfium2")
 Image = pytest.importorskip("PIL.Image")
@@ -88,7 +88,7 @@ def test_zoom_is_clamped_and_toggle_tool_works(tmp_path: Path) -> None:
 
     Le zoom reste dans les bornes ; les outils se basculent au 2e clic.
     """
-    from docscanner.app.state import ZOOM_MAX, ZOOM_MIN
+    from lestang_pdf_editor.app.state import ZOOM_MAX, ZOOM_MIN
 
     state = make_state(tmp_path)
     assert state.zoom == 1.0

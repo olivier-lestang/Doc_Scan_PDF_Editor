@@ -37,7 +37,7 @@ jobs:
 
       - name: Pack installer
         run: >-
-          uv run flet pack src/docscanner/app/main.py
+          uv run flet pack src/lestang_pdf_editor/app/main.py
           --name DocScanPDFEditor
           --product_name "Doc Scan PDF Editor"
           --company_name "Olivier Lestang"

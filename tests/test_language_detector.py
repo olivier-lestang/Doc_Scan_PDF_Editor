@@ -5,8 +5,8 @@ Tests de la détection de langue basée sur langdetect.
 
 import pytest
 
-from docscanner.core.result import Ok
-from docscanner.data.ocr.language_detector import LangDetectLanguageDetector
+from lestang_pdf_editor.core.result import Ok
+from lestang_pdf_editor.data.ocr.language_detector import LangDetectLanguageDetector
 
 pytest.importorskip("langdetect")
 
@@ -40,7 +40,7 @@ def test_empty_text_is_an_error() -> None:
 
     Un texte vide renvoie une erreur, pas un crash.
     """
-    from docscanner.core.result import Err
+    from lestang_pdf_editor.core.result import Err
 
     result = LangDetectLanguageDetector().detect_language("   ")
     assert isinstance(result, Err)

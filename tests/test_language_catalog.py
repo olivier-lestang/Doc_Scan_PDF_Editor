@@ -5,7 +5,7 @@ Tests du catalogue de langues OCR.
 
 from pathlib import Path
 
-from docscanner.data.ocr.language_catalog import OcrLanguageCatalog
+from lestang_pdf_editor.data.ocr.language_catalog import OcrLanguageCatalog
 
 ASSET = Path(__file__).resolve().parents[1] / "assets" / "ocr" / "languages.json"
 

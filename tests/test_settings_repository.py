@@ -6,8 +6,8 @@ Tests du dépôt de réglages local versionné.
 import json
 from pathlib import Path
 
-from docscanner.core.settings import SCHEMA_VERSION, ScanSettings, Settings
-from docscanner.data.settings.local_settings_repository import (
+from lestang_pdf_editor.core.settings import SCHEMA_VERSION, ScanSettings, Settings
+from lestang_pdf_editor.data.settings.local_settings_repository import (
     LocalSettingsRepository,
 )
 

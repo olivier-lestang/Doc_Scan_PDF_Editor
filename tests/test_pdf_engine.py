@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 from pypdf import PdfReader, PdfWriter
 
-from docscanner.core.result import Ok
-from docscanner.data.pdf.pypdfium_engine import PypdfiumPdfEngine
-from docscanner.domain.entities.annotation import (
+from lestang_pdf_editor.core.result import Ok
+from lestang_pdf_editor.data.pdf.pypdfium_engine import PypdfiumPdfEngine
+from lestang_pdf_editor.domain.entities.annotation import (
     HighlightAnnotation,
     RectangleAnnotation,
     TextAnnotation,

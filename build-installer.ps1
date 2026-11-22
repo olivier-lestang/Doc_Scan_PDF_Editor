@@ -2,11 +2,11 @@
 # Pour un nouvel essai : relancer ce script puis ecraser l'ancien .exe par le
 # nouveau (les reglages utilisateur dans %APPDATA% sont conserves).
 # Usage :  powershell -ExecutionPolicy Bypass -File .\build-installer.ps1
-uv sync
-uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3" "flet-web==0.28.3"
-uv run flet pack src/docscanner/app/main.py `
-  --name DocScanPDFEditor `
-  --product_name "Doc Scan PDF Editor" `
+# Versions figees via uv.lock (uv sync --frozen --group desktop).
+uv sync --frozen --group desktop
+uv run flet pack src/lestang_pdf_editor/app/main.py `
+  --name LestangPdfEditor `
+  --product_name "Lestang PDF Editor" `
   --company_name "Olivier Lestang" `
-  --file_description "Offline document scanner and PDF editor"
+  --file_description "Offline PDF editor and document scanner"
 Write-Host "Executable genere dans dist\"
