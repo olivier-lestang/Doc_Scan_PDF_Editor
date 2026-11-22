@@ -53,9 +53,8 @@ verb-noun names.
 
 ```bash
 uv sync
-uv run flet run src/docscanner/app/main.py     # dev window
-# or via the console script:
-uv run docscanner
+# desktop runtime needs the flet[all] extra (Flutter binaries), not locked:
+uv run --with "flet[all]==0.28.3" flet run src/docscanner/app/main.py
 ```
 
 Features in the desktop v1: open PDF (any supported version) or image,
