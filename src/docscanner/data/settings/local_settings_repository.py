@@ -57,6 +57,8 @@ class LocalSettingsRepository:
             language=str(raw.get("language", "en")),
             first_name=str(raw.get("first_name", "")),
             last_name=str(raw.get("last_name", "")),
+            theme_mode=str(raw.get("theme_mode", "system")),
+            recent_files=tuple(raw.get("recent_files", [])),
         )
 
     def save(self, settings: Settings) -> None:
@@ -72,6 +74,8 @@ class LocalSettingsRepository:
             "language": settings.language,
             "first_name": settings.first_name,
             "last_name": settings.last_name,
+            "theme_mode": settings.theme_mode,
+            "recent_files": list(settings.recent_files),
         }
         tmp_path = self._path.with_suffix(".tmp")
         tmp_path.write_text(

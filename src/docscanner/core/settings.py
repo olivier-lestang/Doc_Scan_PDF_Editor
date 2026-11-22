@@ -46,3 +46,5 @@ class Settings:
     language: str = "en"
     first_name: str = ""
     last_name: str = ""
+    theme_mode: str = "system"
+    recent_files: tuple[str, ...] = ()

@@ -34,6 +34,16 @@ def _close_dialog(page: ft.Page, dialog: ft.AlertDialog) -> None:
     page.update()
 
 
+def show_snackbar(page: ft.Page, message: str) -> None:
+    """Show a transient snackbar at the bottom of the page.
+
+    Affiche un snackbar transitoire en bas de la page.
+    """
+    page.snack_bar = ft.SnackBar(content=ft.Text(message))
+    page.snack_bar.open = True
+    page.update()
+
+
 def show_scrollable_text(
     page: ft.Page, title: str, content: str, width: int = 640
 ) -> None:

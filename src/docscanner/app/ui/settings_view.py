@@ -22,6 +22,12 @@ DPI_CHOICES = ["auto", "150", "200", "300", "400", "600"]
 Valeurs de DPI sélectionnables (« auto » plus valeurs manuelles).
 """
 
+THEME_CHOICES = {"system": "theme_system", "light": "theme_light", "dark": "theme_dark"}
+"""Theme modes mapped to their i18n label keys.
+
+Modes de thème associés à leurs clés i18n de libellé.
+"""
+
 
 def build_settings_view(state: AppState) -> None:
     """Build the settings view on the page bound to the state.
@@ -79,6 +85,18 @@ def build_settings_view(state: AppState) -> None:
         on_blur=save_name,
     )
 
+    theme_dropdown = ft.Dropdown(
+        label=state.t("settings.theme"),
+        value=state.settings.theme_mode
+        if state.settings.theme_mode in THEME_CHOICES
+        else "system",
+        options=[
+            ft.dropdown.Option(code, state.t(f"settings.{label}"))
+            for code, label in THEME_CHOICES.items()
+        ],
+        on_change=lambda e: state.set_theme_mode(e.control.value),
+    )
+
     ocr_checkboxes = [
         ft.Checkbox(
             label=lang.names.get(state.settings.language, lang.names["en"]),
@@ -122,6 +140,7 @@ def build_settings_view(state: AppState) -> None:
             ft.Row(controls=[first_name_field, last_name_field], spacing=8),
             language_dropdown,
             dpi_dropdown,
+            theme_dropdown,
             ft.Text(state.t("settings.ocr_languages"), weight=ft.FontWeight.BOLD),
             ft.Column(controls=ocr_checkboxes),
             ft.Divider(),

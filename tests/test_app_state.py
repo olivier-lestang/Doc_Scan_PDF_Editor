@@ -121,6 +121,28 @@ def test_author_and_timestamp(tmp_path: Path) -> None:
     assert "+" in ts or "-" in ts[19:] or "Z" in ts  # timezone offset present
 
 
+def test_recent_files_and_theme_persist(tmp_path: Path) -> None:
+    """Opened files land in recent_files; theme mode persists.
+
+    Les fichiers ouverts vont dans recent_files ; le thème persiste.
+    """
+    pdf_a = tmp_path / "a.pdf"
+    pdf_b = tmp_path / "b.pdf"
+    for path in (pdf_a, pdf_b):
+        writer = PdfWriter()
+        writer.add_blank_page(width=595, height=842)
+        with path.open("wb") as handle:
+            writer.write(handle)
+    state = make_state(tmp_path)
+    assert state.open_path(str(pdf_a)).__class__.__name__ == "Ok"
+    assert state.open_path(str(pdf_b)).__class__.__name__ == "Ok"
+    state.set_theme_mode("dark")
+    reloaded = make_state(tmp_path)
+    assert reloaded.settings.recent_files[0] == str(pdf_b)
+    assert str(pdf_a) in reloaded.settings.recent_files
+    assert reloaded.settings.theme_mode == "dark"
+
+
 def test_i18n_files_have_identical_keys() -> None:
     """All four i18n assets expose exactly the same keys as en.json.
 

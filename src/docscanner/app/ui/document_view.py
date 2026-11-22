@@ -1,32 +1,25 @@
-"""Document editor view: ribbon, centered zoomable canvas, OCR, export.
+"""Document editor view: ribbon, centered zoomable canvas, side panel.
 
-Vue éditeur de document : ruban, canevas centré et zoomable, OCR, export.
+Vue éditeur de document : ruban, canevas centré et zoomable, panneau
+latéral (annotations + OCR).
 """
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 
 import flet as ft
 
 from docscanner.app.state import AppState
-from docscanner.app.ui.common import page_scaffold, show_message
+from docscanner.app.ui.common import page_scaffold, show_message, show_snackbar
+from docscanner.app.ui.ribbon import build_ribbon
 from docscanner.core.result import Err, Ok
 from docscanner.domain.entities.annotation import (
+    Annotation,
     HighlightAnnotation,
     RectangleAnnotation,
     TextAnnotation,
 )
-
-TOOL_ICONS = {
-    "select": ft.Icons.TOUCH_APP,
-    "text": ft.Icons.TEXT_FIELDS,
-    "rect": ft.Icons.CROP_SQUARE,
-    "highlight": ft.Icons.HIGHLIGHT,
-}
-"""Icon per annotation tool.
-
-Icône par outil d'annotation.
-"""
 
 TOOL_CURSORS = {
     "select": ft.MouseCursor.BASIC,
@@ -40,38 +33,14 @@ Curseur de souris par outil (l'outil texte affiche un curseur d'insertion
 de texte).
 """
 
-FONT_FAMILIES = ["Helvetica", "Arial", "Times New Roman", "Courier New"]
-"""Font families offered in the ribbon.
-
-Polices proposées dans le ruban.
-"""
-
-FONT_SIZES = [8, 10, 12, 14, 18, 24, 32, 48, 72]
-"""Font sizes (pt) offered in the ribbon.
-
-Tailles de police (pt) proposées dans le ruban.
-"""
-
-TEXT_COLORS = {
-    "#000000": "Black",
-    "#D32F2F": "Red",
-    "#1976D2": "Blue",
-    "#388E3C": "Green",
+ANNOTATION_ICONS = {
+    "text": ft.Icons.TEXT_FIELDS,
+    "rectangle": ft.Icons.CROP_SQUARE,
+    "highlight": ft.Icons.HIGHLIGHT,
 }
-"""Text colors offered in the ribbon (hex -> label key suffix).
+"""Icon per annotation kind in the side panel list.
 
-Couleurs de texte proposées dans le ruban (hex -> libellé).
-"""
-
-HIGHLIGHT_COLORS: dict[str, str] = {
-    "#FFFF00": "Yellow",
-    "#C6FF00": "Green",
-    "#40C4FF": "Blue",
-    "#FF80AB": "Pink",
-}
-"""Highlight (marker) colors offered in the ribbon.
-
-Couleurs de surlignage (marqueur) proposées dans le ruban.
+Icône par type d'annotation dans la liste du panneau latéral.
 """
 
 
@@ -83,21 +52,33 @@ def build_document_view(state: AppState) -> None:
     page = state.page
     page.title = state.t("app_name")
 
-    save_picker = ft.FilePicker(on_result=lambda e: _on_save(state, e))
-    page.overlay.append(save_picker)
+    open_picker = ft.FilePicker(on_result=lambda e: _on_pick_open(state, e))
+    save_picker = ft.FilePicker(on_result=lambda e: _on_save(state, e, flatten=False))
+    save_flat_picker = ft.FilePicker(
+        on_result=lambda e: _on_save(state, e, flatten=True)
+    )
+    insert_picker = ft.FilePicker(on_result=lambda e: _on_insert(state, e))
+    page.overlay.extend([open_picker, save_picker, save_flat_picker, insert_picker])
 
     thumbnails = ft.ListView(expand=False, width=140, spacing=8)
     canvas_stack = ft.Stack()
     gesture: ft.GestureDetector | None = None
+    annots_list = ft.ListView(expand=True, spacing=4)
     ocr_text = ft.TextField(multiline=True, read_only=True, expand=True, label="OCR")
-    ocr_panel = ft.Container(
+    right_panel = ft.Container(
         content=ft.Column(
-            controls=[ft.Text(state.t("doc.ocr_result")), ocr_text],
+            controls=[
+                ft.Text(state.t("doc.annotations"), weight=ft.FontWeight.BOLD),
+                annots_list,
+                ft.Divider(),
+                ft.Text(state.t("doc.ocr_result"), weight=ft.FontWeight.BOLD),
+                ocr_text,
+            ],
             expand=True,
         ),
-        width=320,
+        width=300,
         padding=8,
-        visible=False,
+        bgcolor="#FFFFFF",
     )
     status = ft.Text("")
     zoom_label = ft.Text("100%")
@@ -109,8 +90,8 @@ def build_document_view(state: AppState) -> None:
             thumbnails,
             canvas_stack,
             gesture,
+            annots_list,
             ocr_text,
-            ocr_panel,
             status,
             zoom_label,
         )
@@ -119,6 +100,35 @@ def build_document_view(state: AppState) -> None:
     def toggle_tool(tool: str) -> None:
         state.toggle_tool(tool)
         refresh()
+
+    def snack(message: str) -> None:
+        show_snackbar(page, message)
+
+    actions: dict[str, Callable[[], None]] = {
+        "open": lambda: open_picker.pick_files(
+            allowed_extensions=["pdf", "png", "jpg", "jpeg", "tif", "tiff", "bmp"]
+        ),
+        "export": lambda: save_picker.save_file(
+            file_name="document.pdf", allowed_extensions=["pdf"]
+        ),
+        "export_flat": lambda: save_flat_picker.save_file(
+            file_name="document_flat.pdf", allowed_extensions=["pdf"]
+        ),
+        "insert_pdf": lambda: insert_picker.pick_files(allowed_extensions=["pdf"]),
+        "prev": state.prev_page,
+        "next": state.next_page,
+        "rotate_left": lambda: _rotate(state, refresh, -90),
+        "rotate_right": lambda: _rotate(state, refresh, 90),
+        "delete_page": lambda: _delete_page(state, refresh, snack),
+        "undo": lambda: _undo(state, refresh, snack),
+        "zoom_in": lambda: _zoom_action(state, refresh, "in"),
+        "zoom_out": lambda: _zoom_action(state, refresh, "out"),
+        "zoom_reset": lambda: _zoom_action(state, refresh, "reset"),
+        "fit_width": lambda: _fit(state, refresh, "width"),
+        "fit_page": lambda: _fit(state, refresh, "page"),
+        "enhance": lambda: _enhance(state, refresh, snack),
+        "ocr": lambda: _run_ocr(state, ocr_text, status, refresh, snack),
+    }
 
     def on_scroll(event: ft.ScrollEvent) -> None:
         _on_scroll(state, event, refresh)
@@ -132,13 +142,11 @@ def build_document_view(state: AppState) -> None:
         on_scroll=on_scroll,
     )
 
-    page.on_keyboard_event = lambda e: _on_keyboard(state, e, refresh)
+    page.on_keyboard_event = lambda e: _on_keyboard(state, e, refresh, actions)
 
     state.add_listener(refresh)
 
-    ribbon = _build_ribbon(
-        state, refresh, toggle_tool, save_picker, status, ocr_text, ocr_panel
-    )
+    ribbon = build_ribbon(state, refresh, toggle_tool, actions)
 
     canvas_area = ft.Container(
         expand=True,
@@ -156,34 +164,13 @@ def build_document_view(state: AppState) -> None:
             ft.Container(content=thumbnails, padding=4),
             ft.VerticalDivider(width=1),
             canvas_area,
-            ocr_panel,
+            right_panel,
         ],
         expand=True,
     )
-    zoom_controls = ft.Row(
-        controls=[
-            ft.IconButton(
-                icon=ft.Icons.REMOVE,
-                tooltip=state.t("ribbon.zoom_out"),
-                on_click=lambda _e: _zoom(state, refresh, "out"),
-            ),
-            zoom_label,
-            ft.IconButton(
-                icon=ft.Icons.ADD,
-                tooltip=state.t("ribbon.zoom_in"),
-                on_click=lambda _e: _zoom(state, refresh, "in"),
-            ),
-            ft.TextButton(
-                text="100%",
-                tooltip=state.t("ribbon.zoom_reset"),
-                on_click=lambda _e: _zoom(state, refresh, "reset"),
-            ),
-        ],
-        spacing=4,
-    )
     bottom_bar = ft.Container(
         content=ft.Row(
-            controls=[status, zoom_controls],
+            controls=[status, zoom_label],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         ),
         padding=8,
@@ -204,188 +191,23 @@ def build_document_view(state: AppState) -> None:
     refresh()
 
 
-def _ribbon_group(caption: str, controls: list[ft.Control]) -> ft.Control:
-    """Build one ribbon group: a small caption above a row of controls.
-
-    Construit un groupe du ruban : une légende au-dessus d'une ligne
-    d'outils.
-    """
-    return ft.Column(
-        controls=[
-            ft.Text(caption, size=10, color="#607D8B"),
-            ft.Row(controls=controls, spacing=4),
-        ],
-        spacing=2,
-    )
-
-
-def _set_style(state: AppState, refresh: Callable[[], None], **kwargs: object) -> None:
-    """Update fields of the current text style and refresh the ribbon.
-
-    Met à jour des champs du style de texte courant et rafraîchit le ruban.
-    """
-    for key, value in kwargs.items():
-        setattr(state.text_style, key, value)
-    refresh()
-
-
-def _toggle_style(state: AppState, refresh: Callable[[], None], attr: str) -> None:
-    """Toggle a boolean field of the current text style.
-
-    Inverse un champ booléen du style de texte courant.
-    """
-    setattr(state.text_style, attr, not getattr(state.text_style, attr))
-    refresh()
-
-
-def _build_ribbon(
-    state: AppState,
-    refresh: Callable[[], None],
-    toggle_tool: Callable[[str], None],
-    save_picker: ft.FilePicker,
-    status: ft.Text,
-    ocr_text: ft.TextField,
-    ocr_panel: ft.Container,
-) -> ft.Control:
-    """Build the Word-like ribbon with font, insert, image and file groups.
-
-    Construit le ruban façon Word : groupes police, insertion, image et
-    fichier.
-    """
-    style = state.text_style
-    family = ft.Dropdown(
-        width=150,
-        value=style.font_family,
-        options=[ft.dropdown.Option(name) for name in FONT_FAMILIES],
-        on_change=lambda e: _set_style(state, refresh, font_family=e.control.value),
-    )
-    size = ft.Dropdown(
-        width=70,
-        value=str(int(style.font_size_pt)),
-        options=[ft.dropdown.Option(str(s)) for s in FONT_SIZES],
-        on_change=lambda e: _set_style(
-            state, refresh, font_size_pt=float(e.control.value or 14)
-        ),
-    )
-    bold_btn = ft.IconButton(
-        icon=ft.Icons.FORMAT_BOLD,
-        tooltip=state.t("ribbon.bold"),
-        selected=style.bold,
-        on_click=lambda _e: _toggle_style(state, refresh, "bold"),
-    )
-    italic_btn = ft.IconButton(
-        icon=ft.Icons.FORMAT_ITALIC,
-        tooltip=state.t("ribbon.italic"),
-        selected=style.italic,
-        on_click=lambda _e: _toggle_style(state, refresh, "italic"),
-    )
-    underline_btn = ft.IconButton(
-        icon=ft.Icons.FORMAT_UNDERLINED,
-        tooltip=state.t("ribbon.underline"),
-        selected=style.underline,
-        on_click=lambda _e: _toggle_style(state, refresh, "underline"),
-    )
-    text_color = ft.Dropdown(
-        width=110,
-        value=style.text_color,
-        options=[ft.dropdown.Option(value, key) for key, value in TEXT_COLORS.items()],
-        on_change=lambda e: _set_style(state, refresh, text_color=e.control.value),
-    )
-    highlight = ft.Dropdown(
-        width=110,
-        value=style.highlight_color or "",
-        options=[ft.dropdown.Option("", state.t("ribbon.none"))]
-        + [ft.dropdown.Option(value, key) for key, value in HIGHLIGHT_COLORS.items()],
-        on_change=lambda e: _set_style(
-            state, refresh, highlight_color=e.control.value or None
-        ),
-    )
-    font_group = _ribbon_group(
-        state.t("ribbon.font"), [family, size, bold_btn, italic_btn, underline_btn]
-    )
-    color_group = _ribbon_group(state.t("ribbon.colors"), [text_color, highlight])
-    add_text_style = (
-        ft.ButtonStyle(bgcolor="#BBDEFB") if state.tool == "text" else ft.ButtonStyle()
-    )
-    insert_group = _ribbon_group(
-        state.t("ribbon.insert"),
-        [
-            ft.ElevatedButton(
-                text=state.t("doc.add_text"),
-                icon=ft.Icons.TEXT_FIELDS,
-                style=add_text_style,
-                on_click=lambda _e: toggle_tool("text"),
-            ),
-            ft.IconButton(
-                icon=ft.Icons.CROP_SQUARE,
-                tooltip=state.t("doc.tool_rect"),
-                selected=state.tool == "rect",
-                on_click=lambda _e: toggle_tool("rect"),
-            ),
-            ft.IconButton(
-                icon=ft.Icons.HIGHLIGHT,
-                tooltip=state.t("doc.tool_highlight"),
-                selected=state.tool == "highlight",
-                on_click=lambda _e: toggle_tool("highlight"),
-            ),
-        ],
-    )
-    image_group = _ribbon_group(
-        state.t("ribbon.image"),
-        [
-            ft.ElevatedButton(
-                text=state.t("doc.enhance"),
-                icon=ft.Icons.AUTO_FIX_HIGH,
-                on_click=lambda _e: _enhance(state, refresh),
-            ),
-            ft.ElevatedButton(
-                text=state.t("doc.ocr"),
-                icon=ft.Icons.SCANNER,
-                on_click=lambda _e: _run_ocr(
-                    state, ocr_text, ocr_panel, status, refresh
-                ),
-            ),
-        ],
-    )
-    file_group = _ribbon_group(
-        state.t("ribbon.file"),
-        [
-            ft.ElevatedButton(
-                text=state.t("doc.export"),
-                icon=ft.Icons.SAVE,
-                on_click=lambda _e: save_picker.save_file(
-                    file_name="document.pdf", allowed_extensions=["pdf"]
-                ),
-            ),
-        ],
-    )
-    return ft.Container(
-        content=ft.Row(
-            controls=[font_group, color_group, insert_group, image_group, file_group],
-            spacing=20,
-        ),
-        padding=8,
-        bgcolor="#FFFFFF",
-        border=ft.border.only(bottom=ft.BorderSide(1, "#B0BEC5")),
-    )
-
-
 def _refresh_all(
     state: AppState,
     thumbnails: ft.ListView,
     canvas_stack: ft.Stack,
     gesture: ft.GestureDetector | None,
+    annots_list: ft.ListView,
     ocr_text: ft.TextField,
-    ocr_panel: ft.Container,
     status: ft.Text,
     zoom_label: ft.Text,
 ) -> ft.GestureDetector:
-    """Rebuild thumbnails, canvas, OCR panel and zoom label from state.
+    """Rebuild thumbnails, canvas, side panel and status bar from state.
 
-    Reconstruit vignettes, canevas, panneau OCR et zoom depuis l'état.
+    Reconstruit vignettes, canevas, panneau latéral et barre de statut.
     """
     thumbnails.controls.clear()
-    for index in range(state.page_count()):
+    total = state.page_count()
+    for index in range(total):
         png = state.page_png_path(index, 72)
         if isinstance(png, Ok):
             thumbnails.controls.append(
@@ -394,6 +216,9 @@ def _refresh_all(
                     on_tap=lambda _e, i=index: _select_page(state, i),
                 )
             )
+    annots_list.controls.clear()
+    for position, annotation in enumerate(state.annotations()):
+        annots_list.controls.append(_annotation_row(state, position, annotation))
     canvas_stack.controls.clear()
     if state.document is not None and gesture is not None:
         index = state.selected_page
@@ -419,15 +244,46 @@ def _refresh_all(
             canvas_stack.controls.extend(
                 _annotation_overlays(state, canvas_width, canvas_height)
             )
-        ocr_panel.visible = index in state.page_ocr
         ocr_text.value = state.page_ocr.get(index, "")
         lang = state.page_language.get(index, "")
-        status.value = f"Page {index + 1}/{state.page_count()}" + (
-            f" — lang: {lang}" if lang else ""
+        name = Path(state.document_path or "").name
+        status.value = (
+            f"{name} — {state.t('ribbon.page')} {index + 1}/{total}"
+            f" — {len(state.annotations())} annotations"
+            + (f" — lang: {lang}" if lang else "")
         )
         zoom_label.value = f"{int(state.zoom * 100)}%"
         gesture.mouse_cursor = TOOL_CURSORS[state.tool]
     return gesture
+
+
+def _annotation_row(
+    state: AppState, position: int, annotation: Annotation
+) -> ft.Control:
+    """Build one row of the annotations side panel (icon + summary + delete).
+
+    Construit une ligne du panneau d'annotations (icône + résumé +
+    suppression).
+    """
+    summary = (
+        annotation.content[:40]
+        if isinstance(annotation, TextAnnotation)
+        else annotation.kind
+    )
+    return ft.Row(
+        controls=[
+            ft.Icon(ANNOTATION_ICONS[annotation.kind]),
+            ft.Text(
+                summary, expand=True, no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS
+            ),
+            ft.IconButton(
+                icon=ft.Icons.DELETE,
+                tooltip=state.t("ribbon.delete_page").replace("page", "annotation"),
+                on_click=lambda _e, p=position: state.remove_annotation_at(p),
+            ),
+        ],
+        spacing=4,
+    )
 
 
 def _select_page(state: AppState, index: int) -> None:
@@ -654,24 +510,37 @@ def _on_pan_end(state: AppState, event: ft.DragEndEvent) -> None:
 
 
 def _on_keyboard(
-    state: AppState, event: ft.KeyboardEvent, refresh: Callable[[], None]
+    state: AppState,
+    event: ft.KeyboardEvent,
+    refresh: Callable[[], None],
+    actions: dict[str, Callable[[], None]],
 ) -> None:
-    """Track Ctrl/Cmd and handle zoom shortcuts Ctrl +/-/0.
+    """Handle shortcuts: Ctrl+O/E/Z/0/+/- and PageUp/PageDown navigation.
 
-    Suit Ctrl/Cmd et gère les raccourcis de zoom Ctrl +/-/0.
+    Gère les raccourcis : Ctrl+O/E/Z/0/+/- et navigation PgUp/PgDn.
     """
     state.ctrl_pressed = bool(event.ctrl or event.meta)
+    key = (event.key or "").lower()
     if state.ctrl_pressed:
-        key = (event.key or "").lower()
-        if key in ("+", "=", "add", "num_add"):
-            state.zoom_in()
-            refresh()
+        if key in ("o",):
+            actions["open"]()
+        elif key in ("e",):
+            actions["export"]()
+        elif key in ("z",):
+            actions["undo"]()
+        elif key in ("+", "=", "add", "num_add"):
+            actions["zoom_in"]()
         elif key in ("-", "_", "subtract", "num_subtract"):
-            state.zoom_out()
-            refresh()
+            actions["zoom_out"]()
         elif key == "0":
-            state.zoom_reset()
-            refresh()
+            actions["zoom_reset"]()
+        refresh()
+    elif key in ("pageup", "page_up"):
+        actions["prev"]()
+        refresh()
+    elif key in ("pagedown", "page_down", " "):
+        actions["next"]()
+        refresh()
 
 
 def _on_scroll(
@@ -688,7 +557,7 @@ def _on_scroll(
             refresh()
 
 
-def _zoom(state: AppState, refresh: Callable[[], None], direction: str) -> None:
+def _zoom_action(state: AppState, refresh: Callable[[], None], direction: str) -> None:
     """Apply a zoom button action: "in", "out" or "reset".
 
     Applique un bouton de zoom : « in », « out » ou « reset ».
@@ -702,22 +571,73 @@ def _zoom(state: AppState, refresh: Callable[[], None], direction: str) -> None:
     refresh()
 
 
-def _enhance(state: AppState, refresh: Callable[[], None]) -> None:
+def _fit(state: AppState, refresh: Callable[[], None], kind: str) -> None:
+    """Zoom to fit page width or whole page in the window.
+
+    Zoom pour ajuster la largeur ou la page entière à la fenêtre.
+    """
+    state.zoom_fit(kind)
+    refresh()
+
+
+def _rotate(state: AppState, refresh: Callable[[], None], degrees: int) -> None:
+    """Rotate the current page and refresh.
+
+    Fait pivoter la page courante et rafraîchit.
+    """
+    result = state.rotate_page(degrees)
+    if isinstance(result, Err):
+        show_snackbar(state.page, result.error)
+    refresh()
+
+
+def _delete_page(
+    state: AppState, refresh: Callable[[], None], snack: Callable[[str], None]
+) -> None:
+    """Delete the current page with a snackbar feedback.
+
+    Supprime la page courante avec un retour snackbar.
+    """
+    result = state.delete_page()
+    if isinstance(result, Err):
+        snack(result.error)
+    refresh()
+
+
+def _undo(
+    state: AppState, refresh: Callable[[], None], snack: Callable[[str], None]
+) -> None:
+    """Undo the last annotation with a snackbar feedback.
+
+    Annule la dernière annotation avec un retour snackbar.
+    """
+    result = state.undo()
+    if isinstance(result, Err):
+        snack(result.error)
+    refresh()
+
+
+def _enhance(
+    state: AppState, refresh: Callable[[], None], snack: Callable[[str], None]
+) -> None:
     """Run the one-tap enhancement on the current page.
 
     Lance l'amélioration en un clic sur la page courante.
     """
     result = state.enhance_page(state.selected_page)
     if isinstance(result, Ok):
-        refresh()
+        snack(state.t("doc.enhanced"))
+    else:
+        snack(f"Error: {result.error}")
+    refresh()
 
 
 def _run_ocr(
     state: AppState,
     ocr_text: ft.TextField,
-    ocr_panel: ft.Container,
     status: ft.Text,
     refresh: Callable[[], None],
+    snack: Callable[[str], None],
 ) -> None:
     """Run OCR on the current page and show the recognized text.
 
@@ -725,16 +645,47 @@ def _run_ocr(
     """
     result = state.ocr_page(state.selected_page)
     if isinstance(result, Ok):
-        ocr_panel.visible = True
         ocr_text.value = state.page_ocr.get(state.selected_page, "")
-        status.value = (
-            f"OCR: {len(result.value)} blocks, "
-            f"lang: {state.page_language.get(state.selected_page, '?')}"
-        )
+        snack(f"OCR: {len(result.value)} blocks")
+    else:
+        snack(f"OCR error: {result.error}")
     refresh()
 
 
-def _on_save(state: AppState, event: ft.FilePickerResultEvent) -> None:
+def _on_pick_open(state: AppState, event: ft.FilePickerResultEvent) -> None:
+    """Reopen another file from the document view (Ctrl+O).
+
+    Rouvre un autre fichier depuis la vue document (Ctrl+O).
+    """
+    if not event.files:
+        return
+    path = event.files[0].path or str(Path(event.files[0].name))
+    result = state.open_path(path)
+    if isinstance(result, Ok):
+        build_document_view(state)
+    else:
+        show_message(state.page, "Error", result.error)
+
+
+def _on_insert(state: AppState, event: ft.FilePickerResultEvent) -> None:
+    """Insert all pages of a picked PDF at the end (ribbon action).
+
+    Insère toutes les pages d'un PDF choisi à la fin (action du ruban).
+    """
+    if not event.files:
+        return
+    path = event.files[0].path or str(Path(event.files[0].name))
+    result = state.insert_pdf(path)
+    if isinstance(result, Ok):
+        show_snackbar(state.page, f"+{result.value} pages")
+        state._notify()
+    else:
+        show_message(state.page, "Error", result.error)
+
+
+def _on_save(
+    state: AppState, event: ft.FilePickerResultEvent, *, flatten: bool
+) -> None:
     """Handle the save-file result: export the document as PDF.
 
     Gère le résultat du sélecteur de sauvegarde : exporte le document en
@@ -742,8 +693,12 @@ def _on_save(state: AppState, event: ft.FilePickerResultEvent) -> None:
     """
     if not event.path:
         return
-    result = state.export_pdf(event.path)
+    if state.document is None:
+        return
+    result = state.pdf_engine.export(
+        state.document.document_id, event.path, flatten=flatten
+    )
     if isinstance(result, Ok):
-        show_message(state.page, "OK", f"Saved: {event.path}")
+        show_snackbar(state.page, f"Saved: {event.path}")
     else:
         show_message(state.page, "Error", result.error)

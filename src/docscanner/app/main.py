@@ -4,9 +4,7 @@ Point d'entrée de l'application desktop (UI Flet au-dessus du cœur
 Python).
 
 Run in development:
-    uv run flet run src/docscanner/app/main.py
-Pack an installer:
-    uv run flet pack src/docscanner/app/main.py --name DocScanPDFEditor
+    uv run --with "flet[all]==0.28.3" flet run src/docscanner/app/main.py
 """
 
 import flet as ft
@@ -14,14 +12,22 @@ import flet as ft
 from docscanner.app.state import AppState
 from docscanner.app.ui.home import build_home_view
 
+THEME_SEED = "#1976D2"
+"""Primary color seed of the app theme (professional blue).
+
+Graine de couleur primaire du thème de l'app (bleu professionnel).
+"""
+
 
 def main(page: ft.Page) -> None:
-    """Flet entry point: build the home view bound to a fresh state.
+    """Flet entry point: apply the theme and build the home view.
 
-    Point d'entrée Flet : construit la vue d'accueil avec un état neuf.
+    Point d'entrée Flet : applique le thème et construit la vue d'accueil.
     """
+    page.theme = ft.Theme(color_scheme_seed=THEME_SEED, use_material3=True)
     state = AppState()
     state.page = page
+    state.apply_theme()
     build_home_view(state)
 
 

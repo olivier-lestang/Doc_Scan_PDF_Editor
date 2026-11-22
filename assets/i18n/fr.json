@@ -2,7 +2,8 @@
   "app_name": "Doc Scan PDF Editor",
   "home": {
     "open_file": "Ouvrir un PDF ou une image…",
-    "welcome": "Numérisez, améliorez, OCRisez, annotez et exportez des PDF — 100 % sur votre appareil."
+    "welcome": "Numérisez, améliorez, OCRisez, annotez et exportez des PDF — 100 % sur votre appareil.",
+    "recent": "Fichiers récents"
   },
   "doc": {
     "tool_text": "Ajouter du texte",
@@ -16,7 +17,8 @@
     "font_size": "Taille de police (pt)",
     "add_text": "Ajouter du texte",
     "enhanced": "Image améliorée",
-    "validate": "Valider (Entrée)"
+    "validate": "Valider (Entrée)",
+    "annotations": "Annotations"
   },
   "settings": {
     "title": "Réglages",
@@ -27,7 +29,11 @@
     "language": "Langue",
     "legal": "Légal",
     "first_name": "Prénom",
-    "last_name": "Nom"
+    "last_name": "Nom",
+    "theme": "Thème",
+    "theme_system": "Système",
+    "theme_light": "Clair",
+    "theme_dark": "Sombre"
   },
   "legal": {
     "title": "Légal",
@@ -53,6 +59,20 @@
     "none": "Aucun",
     "zoom_in": "Zoom avant",
     "zoom_out": "Zoom arrière",
-    "zoom_reset": "Réinitialiser le zoom (100 %)"
+    "zoom_reset": "Réinitialiser le zoom (100 %)",
+    "page": "Page",
+    "view": "Affichage",
+    "edit": "Édition",
+    "open": "Ouvrir",
+    "export_flat": "Exporter aplati",
+    "insert_pdf": "Insérer un PDF…",
+    "prev": "Page précédente",
+    "next": "Page suivante",
+    "rotate_left": "Pivoter à gauche",
+    "rotate_right": "Pivoter à droite",
+    "delete_page": "Supprimer la page",
+    "undo": "Annuler",
+    "fit_width": "Ajuster largeur",
+    "fit_page": "Ajuster page"
   }
 }

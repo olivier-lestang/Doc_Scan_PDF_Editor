@@ -159,6 +159,7 @@ class AppState:
         )
         self.ocr_languages: tuple[str, ...] = ("eng", "fra")
         self.document: Document | None = None
+        self.document_path: str = ""
         self.selected_page = 0
         self.tool = "select"
         self.text_style = TextStyle()
@@ -310,16 +311,171 @@ class AppState:
         """Open a PDF or image file and select its first page.
 
         Ouvre un fichier PDF ou image et sélectionne sa première page.
+        Also records the file in the persisted recent-files list.
         """
         result = self.pdf_engine.open(path)
         if isinstance(result, Err):
             return result
         self.document = result.value
+        self.document_path = path
         self.selected_page = 0
         self.page_ocr.clear()
         self.page_language.clear()
+        self._record_recent_file(path)
         self._notify()
         return Ok(result.value.document_id)
+
+    def _record_recent_file(self, path: str) -> None:
+        """Put a file at the front of the persisted recent-files list.
+
+        Met un fichier en tête de la liste persistée des fichiers récents.
+        """
+        from dataclasses import replace
+
+        recent = [path]
+        recent.extend(p for p in self.settings.recent_files if p != path)
+        self.settings = replace(self.settings, recent_files=tuple(recent[:10]))
+        self.settings_repo.save(self.settings)
+
+    def set_theme_mode(self, mode: str) -> None:
+        """Persist the theme mode ("light", "dark" or "system").
+
+        Persiste le mode de thème (« light », « dark » ou « system »).
+        """
+        from dataclasses import replace
+
+        self.settings = replace(self.settings, theme_mode=mode)
+        self.settings_repo.save(self.settings)
+        self.apply_theme()
+        self._notify()
+
+    def apply_theme(self) -> None:
+        """Apply the persisted theme mode to the bound page, if any.
+
+        Applique le mode de thème persisté à la page associée, si présente.
+        """
+        if self.page is None:
+            return
+        import flet as ft
+
+        mode = self.settings.theme_mode
+        self.page.theme_mode = {
+            "light": ft.ThemeMode.LIGHT,
+            "dark": ft.ThemeMode.DARK,
+        }.get(mode, ft.ThemeMode.SYSTEM)
+        self.page.update()
+
+    def page_count(self) -> int:
+        """Return the live page count of the open document (0 if none).
+
+        Retourne le nombre de pages courant du document (0 si aucun).
+        """
+        if self.document is None:
+            return 0
+        return self.pdf_engine.total_pages(self.document.document_id)
+
+    def next_page(self) -> None:
+        """Select the next page if any.
+
+        Sélectionne la page suivante si elle existe.
+        """
+        if self.selected_page < self.page_count() - 1:
+            self.selected_page += 1
+            self._notify()
+
+    def prev_page(self) -> None:
+        """Select the previous page if any.
+
+        Sélectionne la page précédente si elle existe.
+        """
+        if self.selected_page > 0:
+            self.selected_page -= 1
+            self._notify()
+
+    def rotate_page(self, degrees: int) -> Result[None, str]:
+        """Rotate the current page by a multiple of 90 degrees.
+
+        Fait pivoter la page courante par pas de 90 degrés.
+        """
+        if self.document is None:
+            return Err("no document open")
+        return self.pdf_engine.rotate_page(
+            self.document.document_id, self.selected_page, degrees
+        )
+
+    def delete_page(self) -> Result[None, str]:
+        """Delete the current page (refused if it is the last one).
+
+        Supprime la page courante (refusé si c'est la dernière).
+        """
+        if self.document is None:
+            return Err("no document open")
+        result = self.pdf_engine.delete_page(
+            self.document.document_id, self.selected_page
+        )
+        if isinstance(result, Ok):
+            self.selected_page = min(self.selected_page, self.page_count() - 1)
+            self._notify()
+        return result
+
+    def insert_pdf(self, path: str) -> Result[int, str]:
+        """Append all pages of another PDF at the end of the document.
+
+        Ajoute toutes les pages d'un autre PDF à la fin du document.
+        """
+        if self.document is None:
+            return Err("no document open")
+        result = self.pdf_engine.insert_pdf(self.document.document_id, path)
+        if isinstance(result, Ok):
+            self._notify()
+        return result
+
+    def undo(self) -> Result[None, str]:
+        """Remove the most recently added annotation (Ctrl+Z).
+
+        Retire l'annotation la plus récente (Ctrl+Z).
+        """
+        if self.document is None:
+            return Err("no document open")
+        result = self.pdf_engine.remove_last_annotation(self.document.document_id)
+        self._notify()
+        return result
+
+    def remove_annotation_at(self, position: int) -> Result[None, str]:
+        """Remove the annotation at a position in the annotations list.
+
+        Retire l'annotation à une position de la liste des annotations.
+        """
+        if self.document is None:
+            return Err("no document open")
+        result = self.pdf_engine.remove_annotation_at(
+            self.document.document_id, position
+        )
+        self._notify()
+        return result
+
+    def zoom_fit(self, kind: str) -> None:
+        """Set zoom to fit page width or whole page in the window.
+
+        Règle le zoom pour ajuster la largeur ou la page entière à la
+        fenêtre.
+        """
+        if self.document is None:
+            return
+        image = self.page_image(self.selected_page, self.display_dpi())
+        if isinstance(image, Err):
+            return
+        base_w = image.value.width
+        base_h = image.value.height
+        page = self.page
+        window_w = float(getattr(page, "window_width", 0) or 0) or 1280.0
+        window_h = float(getattr(page, "window_height", 0) or 0) or 800.0
+        avail_w = max(200.0, window_w - 520.0)
+        avail_h = max(200.0, window_h - 220.0)
+        if kind == "width":
+            self.set_zoom(avail_w / base_w)
+        else:
+            self.set_zoom(min(avail_w / base_w, avail_h / base_h))
 
     def close_document(self) -> None:
         """Close the current document.
@@ -327,17 +483,9 @@ class AppState:
         Ferme le document courant.
         """
         self.document = None
+        self.document_path = ""
         self.selected_page = 0
         self._notify()
-
-    def page_count(self) -> int:
-        """Return the number of pages of the open document (0 if none).
-
-        Retourne le nombre de pages du document ouvert (0 si aucun).
-        """
-        if self.document is None:
-            return 0
-        return len(self.document.pages)
 
     def page_image(self, index: int, dpi: int) -> Result[ImageBuffer, str]:
         """Return the raw image of a page at the given DPI.

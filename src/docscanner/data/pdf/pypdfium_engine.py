@@ -3,8 +3,9 @@
 Moteur PdfEngine concret : rendu avec pypdfium2, annotation/export avec
 pypdf.
 
-Annotations are written as native PDF annotations (/FreeText, /Square,
-/Highlight) so every PDF viewer can read them.
+Supports page rotation, page deletion, PDF insertion (merge), annotation
+undo, and writes native PDF annotations (/FreeText, /Square, /Highlight,
+/Underline) so every PDF viewer can read them.
 """
 
 from __future__ import annotations
@@ -43,6 +44,17 @@ IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 Extensions de fichiers ouverts comme documents image d'une page.
 """
 
+PDF_FONT_NAMES: dict[str, tuple[str, str, str, str]] = {
+    "Helvetica": ("/Helv", "/HeBo", "/HeOb", "/HeBO"),
+    "Arial": ("/Helv", "/HeBo", "/HeOb", "/HeBO"),
+    "Times New Roman": ("/TiRo", "/TiBo", "/TiIt", "/TiBI"),
+    "Courier New": ("/Cour", "/CoBo", "/CoOb", "/CoBO"),
+}
+"""Base-14 PDF font names: (regular, bold, italic, bold-italic).
+
+Noms de polices PDF de base 14 : (régulier, gras, italique, gras-italique).
+"""
+
 
 @dataclass
 class _OpenDocument:
@@ -54,9 +66,12 @@ class _OpenDocument:
     document_id: str
     source_path: str
     is_pdf: bool
-    page_count: int
+    base_page_count: int
     pdf_version: object | None
     replacements: dict[int, ImageBuffer] = field(default_factory=dict)
+    rotations: dict[int, int] = field(default_factory=dict)
+    deleted: set[int] = field(default_factory=set)
+    extra_pdfs: list[str] = field(default_factory=list)
     annotations: list[Annotation] = field(default_factory=list)
 
 
@@ -82,18 +97,6 @@ def _buffer_to_pil(buffer: ImageBuffer) -> Image.Image:
     from PIL import Image
 
     return Image.frombytes("RGB", (buffer.width, buffer.height), buffer.data)
-
-
-PDF_FONT_NAMES: dict[str, tuple[str, str, str, str]] = {
-    "Helvetica": ("/Helv", "/HeBo", "/HeOb", "/HeBO"),
-    "Arial": ("/Helv", "/HeBo", "/HeOb", "/HeBO"),
-    "Times New Roman": ("/TiRo", "/TiBo", "/TiIt", "/TiBI"),
-    "Courier New": ("/Cour", "/CoBo", "/CoOb", "/CoBO"),
-}
-"""Base-14 PDF font names: (regular, bold, italic, bold-italic).
-
-Noms de polices PDF de base 14 : (régulier, gras, italique, gras-italique).
-"""
 
 
 def _pdf_font_name(family: str, bold: bool, italic: bool) -> str:
@@ -235,7 +238,7 @@ class PypdfiumPdfEngine:
             document_id=document_id,
             source_path=path,
             is_pdf=False,
-            page_count=1,
+            base_page_count=1,
             pdf_version=None,
             replacements={0: buffer},
         )
@@ -257,10 +260,51 @@ class PypdfiumPdfEngine:
             document_id=document_id,
             source_path=path,
             is_pdf=True,
-            page_count=page_count,
+            base_page_count=page_count,
             pdf_version=version,
         )
         return Ok(Document(document_id=document_id, pages=pages, pdf_version=version))
+
+    def _session(self, document_id: str) -> _OpenDocument | None:
+        """Return the session for a document id, or None.
+
+        Retourne la session d'un document, ou None.
+        """
+        return self._documents.get(document_id)
+
+    def _total_pages(self, session: _OpenDocument) -> int:
+        """Total page count including inserted PDFs, minus deleted pages.
+
+        Nombre total de pages (PDF insérés inclus, suppressions exclues).
+        """
+        extra = sum(len(PdfReader(p).pages) for p in session.extra_pdfs)
+        return session.base_page_count + extra - len(session.deleted)
+
+    def total_pages(self, document_id: str) -> int:
+        """Return the live page count of a document (0 if unknown).
+
+        Retourne le nombre de pages courant d'un document (0 si inconnu).
+        """
+        session = self._session(document_id)
+        if session is None:
+            return 0
+        return self._total_pages(session)
+
+    def _resolve(self, session: _OpenDocument, index: int) -> tuple[str, int]:
+        """Map a global page index to (source_path, local_index).
+
+        Convertit un index global de page en (chemin source, index local).
+        """
+        if index < session.base_page_count:
+            return session.source_path, index
+        local = index - session.base_page_count
+        for extra_path in session.extra_pdfs:
+            count = len(PdfReader(extra_path).pages)
+            if local < count:
+                return extra_path, local
+            local -= count
+        msg = f"page index out of range: {index}"
+        raise IndexError(msg)
 
     def set_page_image(
         self, document_id: str, page_index: int, image: ImageBuffer
@@ -269,10 +313,88 @@ class PypdfiumPdfEngine:
 
         Remplace l'image rendue d'une page (utilisé après amélioration).
         """
-        session = self._documents.get(document_id)
+        session = self._session(document_id)
         if session is None:
             return Err(f"unknown document: {document_id}")
         session.replacements[page_index] = image
+        return Ok(None)
+
+    def rotate_page(
+        self, document_id: str, page_index: int, degrees: int
+    ) -> Result[None, str]:
+        """Rotate a page by a multiple of 90 degrees.
+
+        Fait pivoter une page par pas de 90 degrés.
+        """
+        session = self._session(document_id)
+        if session is None:
+            return Err(f"unknown document: {document_id}")
+        current = session.rotations.get(page_index, 0)
+        total = (current + degrees) % 360
+        if total:
+            session.rotations[page_index] = total
+        else:
+            session.rotations.pop(page_index, None)
+        if not session.is_pdf and page_index in session.replacements:
+            pil = _buffer_to_pil(session.replacements[page_index])
+            pil = pil.rotate(-degrees, expand=True)
+            session.replacements[page_index] = _pil_to_buffer(pil)
+        return Ok(None)
+
+    def delete_page(self, document_id: str, page_index: int) -> Result[None, str]:
+        """Mark a page as deleted (refused if it is the last page).
+
+        Marque une page comme supprimée (refusé si c'est la dernière).
+        """
+        session = self._session(document_id)
+        if session is None:
+            return Err(f"unknown document: {document_id}")
+        if self._total_pages(session) <= 1:
+            return Err("cannot delete the last page")
+        session.deleted.add(page_index)
+        session.replacements.pop(page_index, None)
+        session.rotations.pop(page_index, None)
+        return Ok(None)
+
+    def insert_pdf(self, document_id: str, path: str) -> Result[int, str]:
+        """Append all pages of another PDF at the end of the document.
+
+        Ajoute toutes les pages d'un autre PDF à la fin du document.
+        """
+        session = self._session(document_id)
+        if session is None:
+            return Err(f"unknown document: {document_id}")
+        try:
+            count = len(PdfReader(path).pages)
+        except Exception as exc:
+            return Err(f"cannot read {path}: {exc}")
+        session.extra_pdfs.append(path)
+        return Ok(count)
+
+    def remove_last_annotation(self, document_id: str) -> Result[None, str]:
+        """Undo: remove the most recently added annotation.
+
+        Annulation : retire l'annotation la plus récente.
+        """
+        session = self._session(document_id)
+        if session is None:
+            return Err(f"unknown document: {document_id}")
+        if session.annotations:
+            session.annotations.pop()
+        return Ok(None)
+
+    def remove_annotation_at(
+        self, document_id: str, position: int
+    ) -> Result[None, str]:
+        """Remove the annotation at the given position in the list.
+
+        Retire l'annotation à la position donnée dans la liste.
+        """
+        session = self._session(document_id)
+        if session is None:
+            return Err(f"unknown document: {document_id}")
+        if 0 <= position < len(session.annotations):
+            session.annotations.pop(position)
         return Ok(None)
 
     def page_image(
@@ -282,17 +404,23 @@ class PypdfiumPdfEngine:
 
         Retourne une page en image brute (remplacement ou rendu au DPI).
         """
-        session = self._documents.get(document_id)
+        session = self._session(document_id)
         if session is None:
             return Err(f"unknown document: {document_id}")
+        if page_index in session.deleted:
+            return Err(f"page {page_index} was deleted")
         if page_index in session.replacements:
             return Ok(session.replacements[page_index])
         if not session.is_pdf:
             return Err("image document without stored image")
         import pypdfium2 as pdfium
 
-        pdf = pdfium.PdfDocument(session.source_path)
-        page = pdf[page_index]
+        source_path, local_index = self._resolve(session, page_index)
+        pdf = pdfium.PdfDocument(source_path)
+        page = pdf[local_index]
+        rotation = session.rotations.get(page_index, 0)
+        if rotation:
+            page.set_rotation(rotation)
         bitmap = page.render(scale=dpi / 72.0)
         pil = bitmap.to_pil()
         return Ok(_pil_to_buffer(pil))
@@ -304,7 +432,7 @@ class PypdfiumPdfEngine:
 
         Attache une annotation à la session du document en mémoire.
         """
-        session = self._documents.get(document_id)
+        session = self._session(document_id)
         if session is None:
             return Err(f"unknown document: {document_id}")
         session.annotations.append(annotation)
@@ -315,7 +443,7 @@ class PypdfiumPdfEngine:
 
         Retourne les annotations enregistrées pour un document.
         """
-        session = self._documents.get(document_id)
+        session = self._session(document_id)
         if session is None:
             return ()
         return tuple(session.annotations)
@@ -327,12 +455,21 @@ class PypdfiumPdfEngine:
 
         Exporte le document en PDF avec des annotations natives.
         """
-        session = self._documents.get(document_id)
+        session = self._session(document_id)
         if session is None:
             return Err(f"unknown document: {document_id}")
         try:
-            if session.is_pdf and not session.replacements and not flatten:
+            simple_copy = (
+                session.is_pdf
+                and not session.replacements
+                and not session.rotations
+                and not session.deleted
+                and not session.extra_pdfs
+            )
+            if simple_copy and not flatten:
                 self._export_pdf_copy(session, destination_path)
+            elif session.is_pdf:
+                self._export_pdf_rebuild(session, destination_path, flatten)
             else:
                 self._export_from_images(session, destination_path)
             return Ok(destination_path)
@@ -347,7 +484,60 @@ class PypdfiumPdfEngine:
         reader = PdfReader(session.source_path)
         writer = PdfWriter()
         writer.append(reader)
-        self._apply_annotations(writer, session)
+        mapping = {i: i for i in range(session.base_page_count)}
+        self._apply_annotations(writer, session, mapping)
+        with Path(destination_path).open("wb") as handle:
+            writer.write(handle)
+
+    def _export_pdf_rebuild(
+        self,
+        session: _OpenDocument,
+        destination_path: str,
+        flatten: bool,
+    ) -> None:
+        """Rebuild the PDF page by page (rotations, deletions, inserts).
+
+        Reconstruit le PDF page par page (rotations, suppressions,
+        insertions), ou aplati en images si `flatten`.
+        """
+        total = session.base_page_count + sum(
+            len(PdfReader(p).pages) for p in session.extra_pdfs
+        )
+        kept: list[int] = [i for i in range(total) if i not in session.deleted]
+        mapping = {old: new for new, old in enumerate(kept)}
+        if flatten:
+            images = []
+            for global_index in kept:
+                result = self.page_image(session.document_id, global_index, 300)
+                if isinstance(result, Err):
+                    raise ValueError(result.error)
+                images.append(_buffer_to_pil(result.value))
+            if not images:
+                msg = "no pages to export"
+                raise ValueError(msg)
+            tmp_pdf = Path(destination_path).with_suffix(".tmp.pdf")
+            images[0].save(
+                tmp_pdf,
+                save_all=True,
+                append_images=images[1:],
+                resolution=300.0,
+            )
+            reader = PdfReader(str(tmp_pdf))
+            writer = PdfWriter()
+            writer.append(reader)
+            tmp_pdf.unlink(missing_ok=True)
+        else:
+            readers: dict[str, PdfReader] = {}
+            writer = PdfWriter()
+            for global_index in kept:
+                source_path, local_index = self._resolve(session, global_index)
+                reader = readers.setdefault(source_path, PdfReader(source_path))
+                page = reader.pages[local_index]
+                rotation = session.rotations.get(global_index, 0)
+                if rotation:
+                    page.rotate(rotation)
+                writer.add_page(page)
+        self._apply_annotations(writer, session, mapping)
         with Path(destination_path).open("wb") as handle:
             writer.write(handle)
 
@@ -359,9 +549,10 @@ class PypdfiumPdfEngine:
         Reconstruit un PDF à partir des images des pages, puis ajoute les
         annotations.
         """
+        kept = [i for i in range(session.base_page_count) if i not in session.deleted]
         images = [
             _buffer_to_pil(session.replacements[i])
-            for i in range(session.page_count)
+            for i in kept
             if i in session.replacements
         ]
         if not images:
@@ -377,23 +568,32 @@ class PypdfiumPdfEngine:
         reader = PdfReader(str(tmp_pdf))
         writer = PdfWriter()
         writer.append(reader)
-        self._apply_annotations(writer, session)
+        mapping = {old: new for new, old in enumerate(kept)}
+        self._apply_annotations(writer, session, mapping)
         with Path(destination_path).open("wb") as handle:
             writer.write(handle)
         tmp_pdf.unlink(missing_ok=True)
 
-    def _apply_annotations(self, writer: PdfWriter, session: _OpenDocument) -> None:
+    def _apply_annotations(
+        self,
+        writer: PdfWriter,
+        session: _OpenDocument,
+        mapping: dict[int, int],
+    ) -> None:
         """Write all session annotations into the writer's pages.
 
         Écrit toutes les annotations de la session dans les pages du
-        writer.
+        writer (avec recalcul d'index après suppressions).
         """
         by_page: dict[int, list[DictionaryObject]] = {}
         for annotation in session.annotations:
-            page = writer.pages[annotation.page_index]
+            new_index = mapping.get(annotation.page_index)
+            if new_index is None:
+                continue
+            page = writer.pages[new_index]
             width = float(page.mediabox.width)
             height = float(page.mediabox.height)
-            by_page.setdefault(annotation.page_index, []).extend(
+            by_page.setdefault(new_index, []).extend(
                 _annotation_to_pdf_dicts(annotation, width, height)
             )
         for page_index, annots in by_page.items():

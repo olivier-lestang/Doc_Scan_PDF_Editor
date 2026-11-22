@@ -2,7 +2,8 @@
   "app_name": "Doc Scan PDF Editor",
   "home": {
     "open_file": "Open a PDF or image…",
-    "welcome": "Scan, enhance, OCR, annotate and export PDFs — 100% on your device."
+    "welcome": "Scan, enhance, OCR, annotate and export PDFs — 100% on your device.",
+    "recent": "Recent files"
   },
   "doc": {
     "tool_text": "Add text",
@@ -16,7 +17,8 @@
     "font_size": "Font size (pt)",
     "add_text": "Add text",
     "enhanced": "Image enhanced",
-    "validate": "Validate (Enter)"
+    "validate": "Validate (Enter)",
+    "annotations": "Annotations"
   },
   "settings": {
     "title": "Settings",
@@ -27,7 +29,11 @@
     "language": "Language",
     "legal": "Legal",
     "first_name": "First name",
-    "last_name": "Last name"
+    "last_name": "Last name",
+    "theme": "Theme",
+    "theme_system": "System",
+    "theme_light": "Light",
+    "theme_dark": "Dark"
   },
   "legal": {
     "title": "Legal",
@@ -53,6 +59,20 @@
     "none": "None",
     "zoom_in": "Zoom in",
     "zoom_out": "Zoom out",
-    "zoom_reset": "Reset zoom (100%)"
+    "zoom_reset": "Reset zoom (100%)",
+    "page": "Page",
+    "view": "View",
+    "edit": "Edit",
+    "open": "Open",
+    "export_flat": "Export flattened",
+    "insert_pdf": "Insert PDF…",
+    "prev": "Previous page",
+    "next": "Next page",
+    "rotate_left": "Rotate left",
+    "rotate_right": "Rotate right",
+    "delete_page": "Delete page",
+    "undo": "Undo",
+    "fit_width": "Fit width",
+    "fit_page": "Fit page"
   }
 }

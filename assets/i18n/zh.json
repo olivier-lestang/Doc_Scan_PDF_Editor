@@ -2,7 +2,8 @@
   "app_name": "Doc Scan PDF Editor",
   "home": {
     "open_file": "打开 PDF 或图片…",
-    "welcome": "扫描、增强、OCR、标注并导出 PDF —— 全程在您的设备本地完成。"
+    "welcome": "扫描、增强、OCR、标注并导出 PDF —— 全程在您的设备本地完成。",
+    "recent": "最近文件"
   },
   "doc": {
     "tool_text": "添加文字",
@@ -16,7 +17,8 @@
     "font_size": "字号 (pt)",
     "add_text": "添加文字",
     "enhanced": "图像已增强",
-    "validate": "确认 (Enter)"
+    "validate": "确认 (Enter)",
+    "annotations": "批注"
   },
   "settings": {
     "title": "设置",
@@ -27,7 +29,11 @@
     "language": "语言",
     "legal": "法律",
     "first_name": "名",
-    "last_name": "姓"
+    "last_name": "姓",
+    "theme": "主题",
+    "theme_system": "系统",
+    "theme_light": "浅色",
+    "theme_dark": "深色"
   },
   "legal": {
     "title": "法律",
@@ -53,6 +59,20 @@
     "none": "无",
     "zoom_in": "放大",
     "zoom_out": "缩小",
-    "zoom_reset": "重置缩放 (100%)"
+    "zoom_reset": "重置缩放 (100%)",
+    "page": "页面",
+    "view": "视图",
+    "edit": "编辑",
+    "open": "打开",
+    "export_flat": "导出为纯图片",
+    "insert_pdf": "插入 PDF…",
+    "prev": "上一页",
+    "next": "下一页",
+    "rotate_left": "向左旋转",
+    "rotate_right": "向右旋转",
+    "delete_page": "删除页面",
+    "undo": "撤销",
+    "fit_width": "适应宽度",
+    "fit_page": "适应页面"
   }
 }
