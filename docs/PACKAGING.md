@@ -10,7 +10,7 @@ reinstalling the newer installer.
 ```bash
 uv sync
 # the flet[all] extra provides the Flutter runtime binaries (not locked):
-uv pip install "flet[all]==0.28.3"
+uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3" "flet-web==0.28.3"
 ```
 
 ## Windows 10/11 (tested on Windows 11)
@@ -18,7 +18,8 @@ uv pip install "flet[all]==0.28.3"
 On a Windows machine (x64 or ARM64):
 
 ```powershell
-uv run --with "flet[all]==0.28.3" flet pack src/docscanner/app/main.py ^
+uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3" "flet-web==0.28.3"
+uv run flet pack src/docscanner/app/main.py ^
   --name DocScanPDFEditor ^
   --product_name "Doc Scan PDF Editor" ^
   --company_name "Olivier Lestang" ^
@@ -33,7 +34,8 @@ On a Mac (Apple Silicon or Intel; build universal with an x86_64 runner
 or use `--arch`):
 
 ```bash
-uv run --with "flet[all]==0.28.3" flet pack src/docscanner/app/main.py \
+uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3" "flet-web==0.28.3"
+uv run flet pack src/docscanner/app/main.py \
   --name DocScanPDFEditor \
   --product_name "Doc Scan PDF Editor" \
   --company_name "Olivier Lestang" \
@@ -48,7 +50,8 @@ distribution.
 On Linux (x64 or aarch64):
 
 ```bash
-uv run --with "flet[all]==0.28.3" flet pack src/docscanner/app/main.py \
+uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3" "flet-web==0.28.3"
+uv run flet pack src/docscanner/app/main.py \
   --name doc-scan-pdf-editor \
   --product_name "Doc Scan PDF Editor" \
   --company_name "Olivier Lestang" \

@@ -105,10 +105,11 @@ def page_scaffold(
 
 def app_bar(
     state: AppState, title: str, on_back: Callable[[], None] | None = None
-) -> ft.AppBar:
-    """Build the app bar with settings and legal menu entries.
+) -> ft.Control:
+    """Build a custom top app bar (stable controls, no AppBar dependency).
 
-    Construit la barre d'app avec les entrées réglages et légal.
+    Construit une barre d'app sur mesure (contrôles de base stables, sans
+    dépendre du contrôle AppBar) avec les entrées réglages et retour.
     """
     from docscanner.app.ui.settings_view import build_settings_view
 
@@ -118,11 +119,21 @@ def app_bar(
             on_click=lambda _e: build_settings_view(state),
         ),
     ]
+    leading: list[ft.Control] = []
     if on_back is not None:
-        items.append(ft.PopupMenuItem(text="←", on_click=lambda _e: on_back()))
-    return ft.AppBar(
-        title=ft.Text(title),
-        actions=[
-            ft.PopupMenuButton(items=items),
-        ],
+        leading.append(
+            ft.IconButton(icon=ft.Icons.ARROW_BACK, on_click=lambda _e: on_back())
+        )
+    return ft.Container(
+        content=ft.Row(
+            controls=[
+                *leading,
+                ft.Text(title, size=18, weight=ft.FontWeight.BOLD, expand=True),
+                ft.PopupMenuButton(icon=ft.Icons.MORE_VERT, items=items),
+            ],
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
+        padding=8,
+        bgcolor="#FFFFFF",
+        border=ft.border.only(bottom=ft.BorderSide(1, "#B0BEC5")),
     )

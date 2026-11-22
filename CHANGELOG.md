@@ -53,3 +53,15 @@ This file is also embedded in the app and shown on the "Release notes"
 - User profile (first/last name) in settings for annotation metadata.
 - VS Code workspace config (`.vscode/`): interpreter, pytest, Ruff, F5
   launch of the app.
+- Professional UI v2: app theme (Material 3, blue seed) with
+  light/dark/system mode persisted in settings; home page with title,
+  subtitle and persisted recent-files list; full ribbon with File / Page /
+  Insert / Style / Image / View / Edit groups; side panel listing
+  annotations (with per-item delete) and OCR result; status bar with file
+  name, page x/y, annotation count and zoom.
+- Page operations: previous/next (PgUp/PgDn), rotate ±90°, delete page,
+  insert another PDF (merge), all reflected at export with correct
+  annotation index remapping; flatten export (images only).
+- Shortcuts: Ctrl+O open, Ctrl+E export, Ctrl+Z undo, Ctrl+0 reset zoom,
+  Ctrl +/-, Ctrl+wheel zoom; snackbar feedback.
+- Undo stack for annotations (Ctrl+Z / ribbon).

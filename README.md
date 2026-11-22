@@ -54,7 +54,8 @@ verb-noun names.
 ```bash
 uv sync
 # desktop runtime needs the flet[all] extra (Flutter binaries), not locked:
-uv run --with "flet[all]==0.28.3" flet run src/docscanner/app/main.py
+uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3" "flet-web==0.28.3"
+uv run flet run src/docscanner/app/main.py
 ```
 
 Features in the desktop v1: open PDF (any supported version) or image,
@@ -92,10 +93,11 @@ code .        # or File > Open Folder in VS Code
 Recommended extensions: **Python**, **Pylance**, **Ruff** (all from the
 Marketplace). The `.vscode/settings.json` in the repo points the
 interpreter at `.venv` and enables pytest + Ruff. To launch the app from
-VS Code: install `flet[all]==0.28.3` into the venv first, then press F5
-with the « Doc Scan PDF Editor (flet run) » configuration (see
-`.vscode/launch.json`), or use the integrated terminal with
-`uv run --with "flet[all]==0.28.3" flet run src/docscanner/app/main.py`.
+VS Code: install the pinned flet runtime packages into the venv first
+(`uv pip install "flet==0.28.3" "flet-cli==0.28.3" "flet-desktop==0.28.3"
+"flet-web==0.28.3"`), then press F5 with the « Doc Scan PDF Editor
+(flet run) » configuration (see `.vscode/launch.json`), or use the
+integrated terminal with `uv run flet run src/docscanner/app/main.py`.
 
 ## Licensing
 
