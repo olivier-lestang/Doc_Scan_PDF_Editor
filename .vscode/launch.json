@@ -5,7 +5,7 @@
       "name": "Doc Scan PDF Editor (flet run)",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/.venv/Scripts/flet",
+      "program": "${workspaceFolder}/.venv/Scripts/flet.exe",
       "args": ["run", "src/lestang_pdf_editor/app/main.py"],
       "console": "integratedTerminal",
       "justMyCode": false
