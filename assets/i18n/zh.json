@@ -1,0 +1,21 @@
+{
+  "app_name": "Doc Scan PDF Editor",
+  "settings": {
+    "title": "设置",
+    "scanning": "扫描",
+    "dpi": "分辨率 (DPI)",
+    "dpi_auto": "自动",
+    "language": "语言",
+    "legal": "法律"
+  },
+  "legal": {
+    "title": "法律",
+    "legal_notice": "法律声明与版权",
+    "open_source_licenses": "开源许可证",
+    "release_notes": "更新内容",
+    "privacy": "隐私"
+  },
+  "premium": {
+    "available_with_subscription": "订阅后可用"
+  }
+}

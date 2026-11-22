@@ -1,0 +1,21 @@
+{
+  "app_name": "Doc Scan PDF Editor",
+  "settings": {
+    "title": "Ajustes",
+    "scanning": "Escaneo",
+    "dpi": "Resolución (DPI)",
+    "dpi_auto": "Automática",
+    "language": "Idioma",
+    "legal": "Legal"
+  },
+  "legal": {
+    "title": "Legal",
+    "legal_notice": "Aviso legal y derechos de autor",
+    "open_source_licenses": "Licencias de código abierto",
+    "release_notes": "Novedades",
+    "privacy": "Privacidad"
+  },
+  "premium": {
+    "available_with_subscription": "Disponible con una suscripción"
+  }
+}
