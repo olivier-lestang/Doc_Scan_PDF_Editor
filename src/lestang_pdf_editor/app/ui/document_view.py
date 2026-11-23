@@ -613,6 +613,9 @@ def _annotation_overlays(
                     top=y * height,
                     width=max(40.0, w * width),
                     height=max(24.0, h * height),
+                    # Text starts at the top-left of the box (Word-like).
+                    # Le texte commence en haut à gauche de la zone.
+                    alignment=ft.alignment.top_left,
                     border=(
                         ft.border.all(1.5, "#1976D2")
                         if selected
@@ -703,31 +706,25 @@ def _open_text_editor(
         autofocus=True,
         multiline=True,
         expand=True,
-        label=state.t("doc.text_content"),
+        # Type directly inside the rectangle: no label, no underline, text
+        # starts at the top-left of the box (Word-like). Validate with
+        # Ctrl+Enter or by clicking outside; Escape cancels.
+        # Saisie directe dans le rectangle : sans libellé ni bordure, le
+        # texte commence en haut à gauche. Validation par Ctrl+Entrée ou
+        # clic à l'extérieur ; Échap annule.
+        border=ft.InputBorder.NONE,
+        text_align=ft.TextAlign.LEFT,
     )
 
-    def commit() -> None:
-        _commit_editing(state, refresh)
-
     editor = ft.Container(
-        content=ft.Row(
-            controls=[
-                ft.Container(field, expand=True),
-                ft.IconButton(
-                    icon=ft.Icons.CHECK,
-                    tooltip=state.t("doc.validate"),
-                    on_click=lambda _e: commit(),
-                ),
-            ],
-            spacing=2,
-        ),
+        content=field,
         left=rect[0] * width,
         top=rect[1] * height,
         width=max(120.0, rect[2] * width),
         height=max(44.0, rect[3] * height),
         bgcolor="#FFFFFF",
         border=ft.border.all(1.5, "#1976D2"),
-        padding=2,
+        padding=4,
     )
     state._editing = {
         "field": field,

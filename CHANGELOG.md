@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is also embedded in the app and shown on the "Release notes"
 ("Nouveautés") page.
 
+## [0.3.0] - 2026-11-23
+
+Version is now bumped automatically on every change (SemVer: MINOR for
+features, PATCH for fixes) and shown in the bottom-right status bar.
+
+### Changed
+
+- Text tool: you now type **directly inside the rectangle** (text starts at
+  the top-left of the box); the framed "comment" editor with the ✓ button
+  is removed. Validate with Ctrl+Enter or by clicking outside, Escape
+  cancels, Enter = newline.
+- Font family dropdown extended (base-14 + common system fonts: Segoe UI,
+  Verdana, Georgia, Consolas, ...). At PDF export every family is mapped
+  to the closest base-14 font, so no font file is embedded and the export
+  stays portable and license-clean. Bundling/embedding OFL fonts (Liberation,
+  DejaVu, Noto) for pixel-exact export is a possible next step.
+
+### Fixed
+
+- Drag-drawn text boxes no longer vanish on mouse release.
+
 ## [0.2.0] - 2026-11-23
 
 ### Added
@@ -25,8 +46,6 @@ This file is also embedded in the app and shown on the "Release notes"
   at first build), so the I-beam/click cursor now actually appears.
 - Word-like text boxes, progress bars + rotating log file, per-button
   ribbon package (`ribbon/<tab>/<group>/<button>.py`).
-- Drag-drawn text boxes no longer vanish on mouse release (the open
-  editor overlay is preserved across canvas rebuilds).
 
 ## [Unreleased]
 
