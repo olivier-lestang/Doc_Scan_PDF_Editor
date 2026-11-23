@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is also embedded in the app and shown on the "Release notes"
 ("Nouveautés") page.
 
+## [0.4.0] - 2026-11-23
+
+### Added
+
+- Selected text box shows **8 resize handles** (4 corners + 4 edge
+  midpoints); hold any handle to resize, with live control-level updates.
+  Move = hold-click drag, re-edit = double-click (already in place, now
+  covered by the handles too).
+- Thumbnails now bake the annotations in (`page_png_path(..., annotated=True)`
+  + PIL drawing) and annotation add/replace/remove bump the session
+  revision, so a modified page is reflected in its thumbnail.
+- Ribbon reworked into **clickable tabs: File / Home / Insert / Tools**
+  (`TABS` in `ribbon/__init__.py`); Home holds all text-editing tools
+  (annotations + font). Zoom controls moved out of the ribbon to the
+  **bottom-right of the window** (bottom bar, next to the zoom %).
+- Page-jump field in the bottom bar (type a page number + Enter).
+- Default desktop window size set to **1500x920** (resizable).
+
 ## [0.3.4] - 2026-11-23
 
 ### Changed

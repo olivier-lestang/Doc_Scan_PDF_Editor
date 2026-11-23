@@ -1,16 +1,15 @@
-"""Home > File ribbon group (open/export/insert/properties buttons).
+"""File tab > File ribbon group (open/export/export-flat/properties buttons).
 
-Groupe Accueil > Fichier du ruban (boutons ouvrir/exporter/insérer/
-propriétés).
+Onglet Fichier > groupe Fichier du ruban (boutons ouvrir/exporter/
+exporter aplati/propriétés).
 """
 
 import flet as ft
 
 from lestang_pdf_editor.app.ui.ribbon._shared import RibbonContext, _ribbon_group
-from lestang_pdf_editor.app.ui.ribbon.home.file import (
+from lestang_pdf_editor.app.ui.ribbon.file import (
     export,
     export_flat,
-    insert_pdf,
     open,
     properties,
 )
@@ -27,7 +26,6 @@ def build_group(ctx: RibbonContext) -> ft.Control:
             open.control(ctx),
             export.control(ctx),
             export_flat.control(ctx),
-            insert_pdf.control(ctx),
             properties.control(ctx),
         ],
     )

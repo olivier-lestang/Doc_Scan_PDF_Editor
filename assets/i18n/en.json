@@ -93,7 +93,10 @@
     "search": "Search",
     "properties": "Properties",
     "duplicate": "Duplicate page",
-    "duplicated": "Page duplicated (page {n})"
+    "duplicated": "Page duplicated (page {n})",
+    "home": "Home",
+    "tools": "Tools",
+    "annotations": "Annotations"
   },
   "common": {
     "ok": "OK",

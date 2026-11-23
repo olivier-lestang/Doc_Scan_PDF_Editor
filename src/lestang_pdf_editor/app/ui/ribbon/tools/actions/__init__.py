@@ -6,7 +6,7 @@ Groupe Édition > Actions du ruban (annuler, rechercher).
 import flet as ft
 
 from lestang_pdf_editor.app.ui.ribbon._shared import RibbonContext, _ribbon_group
-from lestang_pdf_editor.app.ui.ribbon.edit.actions import search, undo
+from lestang_pdf_editor.app.ui.ribbon.tools.actions import search, undo
 
 
 def build_group(ctx: RibbonContext) -> ft.Control:

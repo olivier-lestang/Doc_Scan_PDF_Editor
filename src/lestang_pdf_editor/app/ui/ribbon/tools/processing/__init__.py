@@ -6,7 +6,7 @@ Groupe Image > Traitement du ruban (amélioration, OCR).
 import flet as ft
 
 from lestang_pdf_editor.app.ui.ribbon._shared import RibbonContext, _ribbon_group
-from lestang_pdf_editor.app.ui.ribbon.image.processing import enhance, ocr
+from lestang_pdf_editor.app.ui.ribbon.tools.processing import enhance, ocr
 
 
 def build_group(ctx: RibbonContext) -> ft.Control:

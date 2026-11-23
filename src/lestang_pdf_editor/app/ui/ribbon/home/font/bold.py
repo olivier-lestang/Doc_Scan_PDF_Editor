@@ -13,6 +13,6 @@ def control(ctx: RibbonContext) -> ft.Control:
 
     Construit ce bouton du ruban.
     """
-    from lestang_pdf_editor.app.ui.ribbon.insert.font import _shared
+    from lestang_pdf_editor.app.ui.ribbon.home.font import _shared
 
     return _shared.style_toggle(ctx, ft.Icons.FORMAT_BOLD, "ribbon.bold", "bold")

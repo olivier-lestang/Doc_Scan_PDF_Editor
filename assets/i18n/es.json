@@ -93,7 +93,10 @@
     "search": "Buscar",
     "properties": "Propiedades",
     "duplicate": "Duplicar p\u00e1gina",
-    "duplicated": "P\u00e1gina duplicada (p\u00e1gina {n})"
+    "duplicated": "P\u00e1gina duplicada (p\u00e1gina {n})",
+    "home": "Inicio",
+    "tools": "Herramientas",
+    "annotations": "Anotaciones"
   },
   "common": {
     "ok": "Aceptar",

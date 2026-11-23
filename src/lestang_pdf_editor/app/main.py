@@ -43,6 +43,12 @@ def main(page: ft.Page) -> None:
         log_path = setup_logging()
         logger.info("app starting (log: %s)", log_path)
         page.theme = ft.Theme(color_scheme_seed=THEME_SEED, use_material3=True)
+        # Default window size on desktop (1500x920; the user can resize).
+        # Taille de fenêtre par défaut sur desktop (1500x920 ; redimensionnable).
+        window = getattr(page, "window", None)
+        if window is not None:
+            window.width = 1500
+            window.height = 920
 
         progress = ft.ProgressBar(width=360, value=0.0)
         page.controls.clear()

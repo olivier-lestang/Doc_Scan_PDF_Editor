@@ -6,7 +6,7 @@ Groupe Page > Organisation du ruban (navigation et modifications de pages).
 import flet as ft
 
 from lestang_pdf_editor.app.ui.ribbon._shared import RibbonContext, _ribbon_group
-from lestang_pdf_editor.app.ui.ribbon.page.organization import (
+from lestang_pdf_editor.app.ui.ribbon.tools.organization import (
     delete_page,
     duplicate_page,
     next_page,

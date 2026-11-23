@@ -541,6 +541,7 @@ class PypdfiumPdfEngine:
         if not 0 <= position < len(session.annotations):
             return Err(f"invalid annotation position: {position}")
         session.annotations[position] = annotation
+        session.revision += 1
         return Ok(None)
 
     def remove_last_annotation(self, document_id: str) -> Result[None, str]:
@@ -553,6 +554,7 @@ class PypdfiumPdfEngine:
             return Err(f"unknown document: {document_id}")
         if session.annotations:
             session.annotations.pop()
+            session.revision += 1
         return Ok(None)
 
     def remove_annotation_at(
@@ -567,6 +569,7 @@ class PypdfiumPdfEngine:
             return Err(f"unknown document: {document_id}")
         if 0 <= position < len(session.annotations):
             session.annotations.pop(position)
+            session.revision += 1
         return Ok(None)
 
     def page_image(
@@ -641,6 +644,7 @@ class PypdfiumPdfEngine:
         if session is None:
             return Err(f"unknown document: {document_id}")
         session.annotations.append(annotation)
+        session.revision += 1
         return Ok(None)
 
     def annotations(self, document_id: str) -> tuple[Annotation, ...]:

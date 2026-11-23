@@ -339,10 +339,54 @@ def build_document_view(state: AppState) -> None:
         ],
         expand=True,
     )
+    page_jump = ft.TextField(
+        width=64,
+        dense=True,
+        text_align=ft.TextAlign.CENTER,
+        label=state.t("ribbon.page"),
+        on_submit=lambda e: _jump_to_page(state, e, refresh),
+    )
+    # Zoom controls live at the bottom-right of the window (the former
+    # "View" ribbon group), next to the zoom percentage.
+    # Les contrôles de zoom sont en bas à droite de la fenêtre (l'ancien
+    # groupe « Affichage » du ruban), à côté du pourcentage de zoom.
+    zoom_controls = ft.Row(
+        controls=[
+            ft.IconButton(
+                icon=ft.Icons.ZOOM_OUT,
+                tooltip=state.t("ribbon.zoom_out"),
+                on_click=lambda _e: actions["zoom_out"](),
+            ),
+            zoom_label,
+            ft.IconButton(
+                icon=ft.Icons.ZOOM_IN,
+                tooltip=state.t("ribbon.zoom_in"),
+                on_click=lambda _e: actions["zoom_in"](),
+            ),
+            ft.IconButton(
+                icon=ft.Icons.ZOOM_OUT_MAP,
+                tooltip=state.t("ribbon.fit_width"),
+                on_click=lambda _e: actions["fit_width"](),
+            ),
+            ft.IconButton(
+                icon=ft.Icons.FIT_SCREEN,
+                tooltip=state.t("ribbon.fit_page"),
+                on_click=lambda _e: actions["fit_page"](),
+            ),
+            ft.IconButton(
+                icon=ft.Icons.OPEN_IN_FULL,
+                tooltip=state.t("ribbon.zoom_reset"),
+                on_click=lambda _e: actions["zoom_reset"](),
+            ),
+        ],
+        spacing=2,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+    )
     bottom_bar = ft.Container(
         content=ft.Row(
-            controls=[status, progress_bar, zoom_label],
+            controls=[status, progress_bar, page_jump, zoom_controls],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
         padding=8,
         bgcolor="#FFFFFF",
@@ -466,7 +510,12 @@ async def _fill_thumbnails(
     for index in range(min(total, len(thumb_images))):
         if generation != state._render_generation:
             return
-        result = await loop.run_in_executor(None, state.page_png_path, index, 72)
+        # Thumbnails bake the annotations in, so they reflect page edits.
+        # Les vignettes incrustent les annotations : elles reflètent les
+        # modifications de la page.
+        result = await loop.run_in_executor(
+            None, partial(state.page_png_path, index, 72, annotated=True)
+        )
         if generation != state._render_generation:
             return
         if isinstance(result, Ok):
@@ -569,6 +618,26 @@ def _select_page(state: AppState, index: int) -> None:
     state._notify()
 
 
+def _jump_to_page(
+    state: AppState, event: ft.ControlEvent, refresh: Callable[[], None]
+) -> None:
+    """Go to the page number typed in the bottom-bar jump field (Enter).
+
+    Va à la page tapée dans le champ de saut en bas (Entrée), bornée entre
+    1 et le nombre de pages.
+    """
+    field = event.control
+    try:
+        target = int(str(getattr(field, "value", "") or "").strip())
+    except ValueError:
+        return
+    total = state.page_count()
+    if total <= 0:
+        return
+    _select_page(state, min(max(target, 1), total) - 1)
+    refresh()
+
+
 def _annotation_overlays(
     state: AppState,
     width: int,
@@ -623,24 +692,50 @@ def _annotation_overlays(
                     state, e, pos, canvas_stack, refresh
                 ),
             )
-            overlays.append(
-                ft.Container(
-                    content=gesture,
-                    left=x * width,
-                    top=y * height,
-                    width=max(40.0, w * width),
-                    height=max(24.0, h * height),
-                    # Text starts at the top-left of the box (Word-like).
-                    # Le texte commence en haut à gauche de la zone.
-                    alignment=ft.alignment.top_left,
-                    border=(
-                        ft.border.all(1.5, "#1976D2")
-                        if selected
-                        else ft.border.all(1, "#90CAF9")
-                    ),
-                    tooltip=tooltip or None,
-                )
+            overlay = ft.Container(
+                content=ft.Stack(controls=[gesture]),
+                left=x * width,
+                top=y * height,
+                width=max(40.0, w * width),
+                height=max(24.0, h * height),
+                # Text starts at the top-left of the box (Word-like).
+                # Le texte commence en haut à gauche de la zone.
+                alignment=ft.alignment.top_left,
+                border=(
+                    ft.border.all(1.5, "#1976D2")
+                    if selected
+                    else ft.border.all(1, "#90CAF9")
+                ),
+                tooltip=tooltip or None,
             )
+            if selected:
+                # 8 resize handles on a selected text box: 4 corners + 4 edge
+                # midpoints; hold one to resize (Word-like).
+                # 8 poignées de redimensionnement sur une zone sélectionnée :
+                # 4 coins + 4 milieux de bordure ; maintenir pour agrandir.
+                handles: dict[str, ft.Container] = {}
+                stack = overlay.content
+                if isinstance(stack, ft.Stack):
+                    for handle_name in _RESIZE_HANDLES:
+                        handle = ft.Container(
+                            width=10, height=10, bgcolor="#1976D2", border_radius=5
+                        )
+                        handles[handle_name] = handle
+                        stack.controls.append(
+                            _make_handle_detector(
+                                state,
+                                position,
+                                handle_name,
+                                overlay,
+                                handles,
+                                canvas_stack,
+                                refresh,
+                            )
+                        )
+                    _place_handles(
+                        handles, float(overlay.width or 0), float(overlay.height or 0)
+                    )
+            overlays.append(overlay)
         elif isinstance(annotation, RectangleAnnotation):
             overlays.append(
                 ft.Container(
@@ -913,6 +1008,163 @@ def _move_end(
     refresh()
 
 
+def _make_handle_detector(
+    state: AppState,
+    position: int,
+    handle_name: str,
+    overlay: ft.Container,
+    handles: dict[str, ft.Container],
+    canvas_stack: ft.Stack,
+    refresh: Callable[[], None],
+) -> ft.GestureDetector:
+    """Build the gesture detector of one resize handle (8 per selected box).
+
+    Construit le détecteur de gestes d'une poignée de redimensionnement
+    (8 par zone sélectionnée).
+    """
+    return ft.GestureDetector(
+        content=handles[handle_name],
+        on_pan_start=lambda e: _resize_start(
+            state, e, position, handle_name, overlay, handles, canvas_stack
+        ),
+        on_pan_update=lambda e: _resize_update(state, e, position, handle_name),
+        on_pan_end=lambda e: _resize_end(state, e, position, handle_name, refresh),
+    )
+
+
+_RESIZE_HANDLES = ("nw", "n", "ne", "e", "se", "s", "sw", "w")
+"""The 8 resize handle names (corners + edge midpoints).
+
+Les 8 noms des poignées (coins + milieux de bordure).
+"""
+
+
+def _place_handles(
+    handles: dict[str, ft.Container], width: float, height: float
+) -> None:
+    """Position the 8 resize handles around a box of the given pixel size.
+
+    Positionne les 8 poignées autour d'une zone de la taille en pixels donnée.
+    """
+    spots = {
+        "nw": (0.0, 0.0),
+        "n": (width / 2, 0.0),
+        "ne": (width, 0.0),
+        "e": (width, height / 2),
+        "se": (width, height),
+        "s": (width / 2, height),
+        "sw": (0.0, height),
+        "w": (0.0, height / 2),
+    }
+    for name, (hx, hy) in spots.items():
+        handle = handles[name]
+        handle.left = hx - 5.0
+        handle.top = hy - 5.0
+
+
+def _resize_start(
+    state: AppState,
+    event: ft.DragStartEvent,
+    position: int,
+    handle: str,
+    overlay: ft.Container,
+    handles: dict[str, ft.Container],
+    canvas_stack: ft.Stack,
+) -> None:
+    """Start resizing a selected text box from one of its 8 handles.
+
+    Démarre le redimensionnement d'une zone sélectionnée depuis une poignée.
+    """
+    annotations = state.annotations()
+    if not 0 <= position < len(annotations):
+        return
+    state._resize = {
+        "position": position,
+        "handle": handle,
+        "start": _local_point(event),
+        "orig_rect": annotations[position].rect,
+        "overlay": overlay,
+        "handles": handles,
+        "canvas_stack": canvas_stack,
+        "rect": annotations[position].rect,
+    }
+    state._drag_start = None
+
+
+def _resize_update(
+    state: AppState, event: ft.DragUpdateEvent, position: int, handle: str
+) -> None:
+    """Live-resize the selected text box while dragging a handle.
+
+    Redimensionne en direct la zone pendant le glisser sur une poignée
+    (mises à jour ciblées des contrôles, pour rester fluide).
+    """
+    rz = state._resize
+    if rz is None or rz["position"] != position or rz["handle"] != handle:
+        return
+    width, height = _canvas_dims(state, rz["canvas_stack"])
+    start_x, start_y = rz["start"]
+    cur_x, cur_y = _local_point(event)
+    dx = (cur_x - start_x) / width
+    dy = (cur_y - start_y) / height
+    ox, oy, ow, oh = rz["orig_rect"]
+    x, y, w, h = ox, oy, ow, oh
+    if "e" in handle:
+        w = ow + dx
+    if "w" in handle:
+        x = ox + dx
+        w = ow - dx
+    if "s" in handle:
+        h = oh + dy
+    if "n" in handle:
+        y = oy + dy
+        h = oh - dy
+    if w < 0.02:
+        w = 0.02
+        if "w" in handle:
+            x = ox + ow - w
+    if h < 0.02:
+        h = 0.02
+        if "n" in handle:
+            y = oy + oh - h
+    rz["rect"] = (x, y, w, h)
+    overlay = rz["overlay"]
+    overlay.left = x * width
+    overlay.top = y * height
+    overlay.width = max(40.0, w * width)
+    overlay.height = max(24.0, h * height)
+    _place_handles(rz["handles"], float(overlay.width), float(overlay.height))
+    overlay.update()
+    for handle_ctl in rz["handles"].values():
+        handle_ctl.update()
+
+
+def _resize_end(
+    state: AppState,
+    event: ft.DragEndEvent,
+    position: int,
+    handle: str,
+    refresh: Callable[[], None],
+) -> None:
+    """Persist the resized rect of the text box (drag end on a handle).
+
+    Persiste le rectangle redimensionné de la zone (relâchement sur une
+    poignée).
+    """
+    from dataclasses import replace as dc_replace
+
+    rz = state._resize
+    state._resize = None
+    if rz is None or rz["position"] != position or rz["handle"] != handle:
+        return
+    rect = rz.get("rect")
+    annotations = state.annotations()
+    if rect is not None and 0 <= position < len(annotations):
+        state.replace_annotation(position, dc_replace(annotations[position], rect=rect))
+    state._selected_annot = None
+    refresh()
+
+
 def _on_tap(
     state: AppState,
     event: ft.TapEvent,
@@ -929,6 +1181,8 @@ def _on_tap(
     taille par défaut au point cliqué.
     """
     if state.document is None:
+        return
+    if state._resize is not None or state._move is not None:
         return
     if state._editing is not None:
         _commit_editing(state, refresh)
@@ -966,7 +1220,7 @@ def _on_pan_start(state: AppState, event: ft.DragStartEvent) -> None:
 
     Mémorise le point de début de glisser pour les outils de dessin.
     """
-    if state._move is not None:
+    if state._move is not None or state._resize is not None:
         return
     state._drag_start = _local_point(event)
     state._drag_last = state._drag_start
@@ -986,7 +1240,7 @@ def _on_pan_update(
     state._drag_last = _local_point(event)
     if state.tool not in ("rect", "highlight", "text") or state._drag_start is None:
         return
-    if state._move is not None:
+    if state._move is not None or state._resize is not None:
         return
     start = state._drag_start
     end = state._drag_last
@@ -1039,7 +1293,7 @@ def _on_pan_end(
     Crée l'annotation à partir du glisser : forme (cadre/surlignage) ou une
     zone de texte de la taille dessinée (outil texte).
     """
-    if state._move is not None:
+    if state._move is not None or state._resize is not None:
         return
     preview = state._drag_preview
     if preview is not None:
