@@ -10,6 +10,7 @@ undo, and writes native PDF annotations (/FreeText, /Square, /Highlight,
 
 from __future__ import annotations
 
+import threading
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -81,6 +82,7 @@ class _OpenDocument:
     annotations: list[Annotation] = field(default_factory=list)
     metadata: dict[str, str] = field(default_factory=dict)
     revision: int = 0
+    pdf_doc: Any = None  # shared pypdfium2 document, closed on session close
 
 
 def _pil_to_buffer(image: Image.Image) -> ImageBuffer:
@@ -217,6 +219,11 @@ class PypdfiumPdfEngine:
         Crée le moteur avec un registre de documents vide.
         """
         self._documents: dict[str, _OpenDocument] = {}
+        # pdfium is not safe for concurrent document loads/renders:
+        # serialize all pdfium access through this lock.
+        # pdfium n'est pas sûr en chargement/rendu concurrents de documents :
+        # tout accès pdfium passe par ce verrou.
+        self._pdfium_lock = threading.Lock()
 
     def open(self, path: str) -> Result[Document, str]:
         """Open a PDF or image file as a Document.
@@ -294,7 +301,11 @@ class PypdfiumPdfEngine:
 
         Supprime la session et libère le document PDF sous-jacent.
         """
-        self._documents.pop(document_id, None)
+        session = self._documents.pop(document_id, None)
+        if session is not None and session.pdf_doc is not None:
+            with self._pdfium_lock:
+                session.pdf_doc.close()
+                session.pdf_doc = None
 
     def _live_list(self, session: _OpenDocument) -> list[int]:
         """Global indices of the live pages (deleted ones excluded), in order.
@@ -513,36 +524,41 @@ class PypdfiumPdfEngine:
             return Ok(session.replacements[page_index])
         if not session.is_pdf:
             return Err("image document without stored image")
-        import pypdfium2 as pdfium
-
         source_path, local_index = self._resolve(session, page_index)
-        pdf: Any = None
-        page: Any = None
-        bitmap: Any = None
         try:
-            pdf = pdfium.PdfDocument(source_path)
-            page = pdf[local_index]
-            rotation = session.rotations.get(page_index, 0)
-            if rotation:
-                page.set_rotation(rotation)
-            bitmap = page.render(scale=dpi / 72.0)
-            pil = bitmap.to_pil()
-            return Ok(_pil_to_buffer(pil))
+            # One shared PdfDocument per session, all pdfium access serialized
+            # by _pdfium_lock: concurrent FPDF_LoadDocument calls corrupt the
+            # library state ("Data format error") and can hang on Windows.
+            # Un seul PdfDocument partagé par session, tout accès pdfium
+            # sérialisé par _pdfium_lock : des FPDF_LoadDocument concurrents
+            # corrompent l'état de la bibliothèque (« Data format error »)
+            # et peuvent bloquer sous Windows.
+            with self._pdfium_lock:
+                if session.pdf_doc is None:
+                    import pypdfium2 as pdfium
+
+                    session.pdf_doc = pdfium.PdfDocument(source_path)
+                page = session.pdf_doc[local_index]
+                bitmap = None
+                try:
+                    rotation = session.rotations.get(page_index, 0)
+                    if rotation:
+                        page.set_rotation(rotation)
+                    bitmap = page.render(scale=dpi / 72.0)
+                    pil = bitmap.to_pil()
+                    return Ok(_pil_to_buffer(pil))
+                finally:
+                    # Close page/bitmap explicitly (never the shared document):
+                    # GC finalizers may otherwise call FPDF_ClosePage on an
+                    # already-freed handle (WinError 0xC000001D on Windows).
+                    # Ferme page/bitmap explicitement (jamais le document
+                    # partagé) : sinon les finaliseurs du GC peuvent appeler
+                    # FPDF_ClosePage sur un handle libéré (WinError 0xC000001D).
+                    if bitmap is not None:
+                        bitmap.close()
+                    page.close()
         except Exception as exc:
             return Err(f"render page {page_index} failed: {exc}")
-        finally:
-            # Explicit close in the right order (bitmap, page, document):
-            # otherwise the GC finalizers may call FPDF_ClosePage on an
-            # already-freed document handle (WinError 0xC000001D).
-            # Fermeture explicite dans le bon ordre (bitmap, page, document)
-            # : sinon les finaliseurs du GC peuvent appeler FPDF_ClosePage
-            # sur un handle déjà libéré (WinError 0xC000001D).
-            if bitmap is not None:
-                bitmap.close()
-            if page is not None:
-                page.close()
-            if pdf is not None:
-                pdf.close()
 
     def add_annotation(
         self, document_id: str, annotation: Annotation

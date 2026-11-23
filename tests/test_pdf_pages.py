@@ -201,3 +201,35 @@ def test_repeated_renders_do_not_leak_pdfium_handles(tmp_path: Path) -> None:
             result = engine.page_image(doc_id, index, 72)
             assert isinstance(result, Ok)
         gc.collect()
+
+
+def test_concurrent_renders_are_serialized_safely(tmp_path: Path) -> None:
+    """Concurrent renders from several threads must all succeed.
+
+    Des rendus concurrents depuis plusieurs threads doivent tous réussir :
+    pypdfium2 n'est pas sûr en FPDF_LoadDocument concurrent (sinon
+    « Data format error » voire blocage), le moteur sérialise via un verrou
+    et partage un seul PdfDocument par session.
+    """
+    import threading
+
+    pdf = tmp_path / "doc.pdf"
+    make_pdf(pdf, pages=6)
+    engine = PypdfiumPdfEngine()
+    document = engine.open(str(pdf))
+    assert isinstance(document, Ok)
+    doc_id = document.value.document_id
+    results: dict[int, object] = {}
+
+    def work(index: int) -> None:
+        results[index] = engine.page_image(doc_id, index, 72)
+
+    threads = [threading.Thread(target=work, args=(i,)) for i in range(6)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    for index in range(6):
+        assert isinstance(results[index], Ok), results[index]
+    engine.close(doc_id)
+    assert engine.revision(doc_id) == 0
