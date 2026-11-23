@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is also embedded in the app and shown on the "Release notes"
 ("Nouveautés") page.
 
+## [0.4.1] - 2026-11-23
+
+### Docs
+
+- ADR 0003 (`docs/adr/0003-gui-framework-flet-desktop-v1.md`): decision to
+  keep Flet 0.28.3 for the desktop V1, alternatives comparison
+  (PySide6/Qt, Tkinter, Tauri/Electron), known Flet quirks and workarounds,
+  and the re-evaluation criteria (native widgets / stylus / LGPL review).
+
 ## [0.4.0] - 2026-11-23
 
 ### Added
