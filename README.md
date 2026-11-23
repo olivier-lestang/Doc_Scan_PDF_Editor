@@ -47,7 +47,9 @@ See [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md). Short version:
 all code and comments in English, every docstring/comment followed by its
 French translation on the next line, lines wrapped at 88 columns, full type
 hints (`mypy --strict`), docstrings enforced by ruff (`D` rules), explicit
-verb-noun names.
+verb-noun names. Security and performance rules (on-device data, untrusted
+PDFs, threading/pdfium rules, known pitfalls) are in
+[docs/SECURITY_PERFORMANCE_PLAYBOOK.md](docs/SECURITY_PERFORMANCE_PLAYBOOK.md).
 
 ## Run the desktop app (Windows / macOS / Linux)
 
