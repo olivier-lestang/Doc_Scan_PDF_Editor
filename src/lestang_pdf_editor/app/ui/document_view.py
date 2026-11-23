@@ -8,6 +8,7 @@ import asyncio
 import json
 import threading
 from collections.abc import Callable, Coroutine
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ import flet as ft
 from lestang_pdf_editor.app.state import AppState
 from lestang_pdf_editor.app.ui.common import page_scaffold, show_message, show_snackbar
 from lestang_pdf_editor.app.ui.ribbon import build_ribbon
+from lestang_pdf_editor.core.logging_setup import get_logger
 from lestang_pdf_editor.core.result import Err, Ok
 from lestang_pdf_editor.domain.entities.annotation import (
     Annotation,
@@ -91,6 +93,49 @@ def _spawn(page: ft.Page, coro: Coroutine[Any, Any, Any]) -> None:
     _schedule(page, consume)
 
 
+logger = get_logger("ui")
+"""UI logger: one INFO line per user action.
+
+Logger UI : une ligne INFO par action utilisateur.
+"""
+
+
+def _show_progress(state: AppState, value: float | None = None) -> None:
+    """Show the progress bar of the active view (indeterminate if value None).
+
+    Affiche la barre de progression de la vue active (indéterminée si
+    value est None).
+    """
+    bar = state.ui_progress
+    if bar is not None and state.page is not None:
+        bar.visible = True
+        bar.value = value
+        state.page.update()
+
+
+def _set_progress(state: AppState, done: int, total: int) -> None:
+    """Set the progress bar to done/total (safe from worker threads).
+
+    Règle la barre de progression à done/total (sûr depuis les threads
+    workers : page.update() de Flet est thread-safe).
+    """
+    bar = state.ui_progress
+    if bar is not None and total > 0 and state.page is not None:
+        bar.value = min(1.0, done / total)
+        state.page.update()
+
+
+def _hide_progress(state: AppState) -> None:
+    """Hide the progress bar of the active view.
+
+    Masque la barre de progression de la vue active.
+    """
+    bar = state.ui_progress
+    if bar is not None and state.page is not None:
+        bar.visible = False
+        state.page.update()
+
+
 def build_document_view(state: AppState) -> None:
     """Build the document editor view for the open document.
 
@@ -126,6 +171,8 @@ def build_document_view(state: AppState) -> None:
     )
     status = ft.Text("")
     zoom_label = ft.Text("100%")
+    progress_bar = ft.ProgressBar(width=220, value=None, visible=False)
+    state.ui_progress = progress_bar
     search_count = ft.Text("")
     search_field: ft.TextField = ft.TextField(
         hint_text=state.t("doc.search_hint"),
@@ -221,6 +268,15 @@ def build_document_view(state: AppState) -> None:
         "properties": lambda: _open_properties_dialog(state),
         "stamp": lambda key: _apply_stamp(state, key, refresh, snack),
     }
+
+    def _logged(name: str, action: Callable[..., None]) -> Callable[..., None]:
+        def run(*args: Any) -> None:
+            logger.info("user action: %s", name)
+            action(*args)
+
+        return run
+
+    actions = {name: _logged(name, action) for name, action in actions.items()}
     state.pending_export = {}
 
     def on_scroll(event: ft.ScrollEvent) -> None:
@@ -265,7 +321,7 @@ def build_document_view(state: AppState) -> None:
     )
     bottom_bar = ft.Container(
         content=ft.Row(
-            controls=[status, zoom_label],
+            controls=[status, progress_bar, zoom_label],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         ),
         padding=8,
@@ -787,12 +843,18 @@ async def _enhance_async(
     Lance l'amélioration en un clic hors du thread UI (gros fichiers).
     """
     loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(None, state.enhance_page, state.selected_page)
-    if isinstance(result, Ok):
-        snack(state.t("doc.enhanced"))
-    else:
-        snack(f"Error: {result.error}")
-    refresh()
+    _show_progress(state)
+    try:
+        result = await loop.run_in_executor(
+            None, state.enhance_page, state.selected_page
+        )
+        if isinstance(result, Ok):
+            snack(state.t("doc.enhanced"))
+        else:
+            snack(f"Error: {result.error}")
+        refresh()
+    finally:
+        _hide_progress(state)
 
 
 async def _ocr_async(
@@ -808,13 +870,17 @@ async def _ocr_async(
     reconnu.
     """
     loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(None, state.ocr_page, state.selected_page)
-    if isinstance(result, Ok):
-        ocr_text.value = state.page_ocr.get(state.selected_page, "")
-        snack(f"OCR: {len(result.value)} blocks")
-    else:
-        snack(f"OCR error: {result.error}")
-    refresh()
+    _show_progress(state)
+    try:
+        result = await loop.run_in_executor(None, state.ocr_page, state.selected_page)
+        if isinstance(result, Ok):
+            ocr_text.value = state.page_ocr.get(state.selected_page, "")
+            snack(f"OCR: {len(result.value)} blocks")
+        else:
+            snack(f"OCR error: {result.error}")
+        refresh()
+    finally:
+        _hide_progress(state)
 
 
 def _on_pick_open(state: AppState, event: ft.FilePickerResultEvent) -> None:
@@ -835,16 +901,21 @@ async def _open_async(state: AppState, path: str) -> None:
     Ouvre un fichier hors du thread UI, puis construit la vue document.
     """
     loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(None, state.open_path, path)
-    if isinstance(result, Ok):
-        try:
-            build_document_view(state)
-        except Exception:
-            import traceback
+    _show_progress(state)
+    try:
+        result = await loop.run_in_executor(None, state.open_path, path)
+        if isinstance(result, Ok):
+            try:
+                build_document_view(state)
+            except Exception:
+                import traceback
 
-            show_message(state.page, "Error", traceback.format_exc())
-    else:
-        show_message(state.page, "Error", result.error)
+                logger.exception("document view build failed")
+                show_message(state.page, "Error", traceback.format_exc())
+        else:
+            show_message(state.page, "Error", result.error)
+    finally:
+        _hide_progress(state)
 
 
 def _on_insert(state: AppState, event: ft.FilePickerResultEvent) -> None:
@@ -865,12 +936,16 @@ async def _insert_async(state: AppState, path: str) -> None:
     Insère un PDF hors du thread UI, puis notifie la vue.
     """
     loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(None, state.insert_pdf, path)
-    if isinstance(result, Ok):
-        show_snackbar(state.page, f"+{result.value} pages")
-        state._notify()
-    else:
-        show_message(state.page, "Error", result.error)
+    _show_progress(state)
+    try:
+        result = await loop.run_in_executor(None, state.insert_pdf, path)
+        if isinstance(result, Ok):
+            show_snackbar(state.page, f"+{result.value} pages")
+            state._notify()
+        else:
+            show_message(state.page, "Error", result.error)
+    finally:
+        _hide_progress(state)
 
 
 def _on_save(state: AppState, event: ft.FilePickerResultEvent) -> None:
@@ -889,24 +964,26 @@ async def _export_async(state: AppState, destination: str) -> None:
 
     Exporte le PDF hors du thread UI, puis affiche le résultat.
     """
-    from functools import partial
-
     pending = state.pending_export
     loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(
-        None,
-        partial(
-            state.export_pdf,
-            destination,
-            flatten=bool(pending.get("flatten", False)),
-            watermark=str(pending.get("watermark") or "") or None,
-            password=str(pending.get("password") or "") or None,
-        ),
-    )
-    if isinstance(result, Ok):
-        show_snackbar(state.page, f"Saved: {destination}")
-    else:
-        show_message(state.page, "Error", result.error)
+    _show_progress(state)
+    try:
+        result = await loop.run_in_executor(
+            None,
+            partial(
+                state.export_pdf,
+                destination,
+                flatten=bool(pending.get("flatten", False)),
+                watermark=str(pending.get("watermark") or "") or None,
+                password=str(pending.get("password") or "") or None,
+            ),
+        )
+        if isinstance(result, Ok):
+            show_snackbar(state.page, f"Saved: {destination}")
+        else:
+            show_message(state.page, "Error", result.error)
+    finally:
+        _hide_progress(state)
 
 
 def _toggle_search(
@@ -932,13 +1009,24 @@ async def _search_async(
     UI et affiche le nombre de résultats.
     """
     loop = asyncio.get_running_loop()
-    state._search_query = query
-    state._search_matches = await loop.run_in_executor(None, state.search, query)
-    state._search_position = -1
-    search_count.value = state.t("doc.search_results").format(
-        n=len(state._search_matches)
-    )
-    refresh()
+    _show_progress(state, 0.0)
+    try:
+        state._search_query = query
+        state._search_matches = await loop.run_in_executor(
+            None,
+            partial(
+                state.search,
+                query,
+                progress=lambda done, total: _set_progress(state, done, total),
+            ),
+        )
+        state._search_position = -1
+        search_count.value = state.t("doc.search_results").format(
+            n=len(state._search_matches)
+        )
+        refresh()
+    finally:
+        _hide_progress(state)
 
 
 def _do_search(state: AppState, refresh: Callable[[], None]) -> None:

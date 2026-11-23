@@ -7,6 +7,7 @@ exercised headless in tests.
 """
 
 import json
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -16,6 +17,7 @@ from typing import Any
 from platformdirs import user_cache_dir, user_config_dir
 
 from lestang_pdf_editor.core.image_buffer import ImageBuffer
+from lestang_pdf_editor.core.logging_setup import get_logger
 from lestang_pdf_editor.core.result import Err, Ok, Result
 from lestang_pdf_editor.core.settings import Settings
 from lestang_pdf_editor.data.auth.unauthenticated_auth_repository import (
@@ -121,13 +123,22 @@ def default_cache_dir() -> Path:
     Retourne le répertoire de cache utilisateur de l'OS pour les images
     de pages rendues.
     """
-    return Path(user_cache_dir("LestangPdfEditor", "Olivier Lestang"))
+    # appauthor=False: %LOCALAPPDATA%\LestangPdfEditor\Cache on Windows.
+    # appauthor=False : %LOCALAPPDATA%\LestangPdfEditor\Cache sous Windows.
+    return Path(user_cache_dir("LestangPdfEditor", appauthor=False))
 
 
 CACHE_MAX_FILES = 300
 """Maximum number of cached page PNGs kept per document (LRU by mtime).
 
 Nombre maximal de PNG de pages en cache par document (LRU par date).
+"""
+
+logger = get_logger("state")
+"""State logger: timings of open/render/OCR/enhance/search/export actions.
+
+Logger d'état : durées des actions ouvrir/rendre/OCR/améliorer/rechercher/
+exporter (jamais le contenu des documents).
 """
 
 
@@ -149,7 +160,7 @@ class AppState:
         catalogues.
         """
         base_config = config_dir or Path(
-            user_config_dir("LestangPdfEditor", "Olivier Lestang")
+            user_config_dir("LestangPdfEditor", appauthor=False)
         )
         self.cache_dir = cache_dir or default_cache_dir()
         self.assets_dir = assets_dir or default_assets_dir()
@@ -182,6 +193,7 @@ class AppState:
         self._search_matches: list[int] = []
         self._search_position = -1
         self._render_generation = 0
+        self.ui_progress: Any = None  # ft.ProgressBar bound by the active view
         self.pending_export: dict[str, object] = {}
         self._listeners: list[Callable[[], None]] = []
 
@@ -327,9 +339,19 @@ class AppState:
         """
         if self.document is not None:
             self.close_document()
+        started = time.perf_counter()
         result = self.pdf_engine.open(path)
         if isinstance(result, Err):
+            logger.warning("open failed: %s (%s)", path, result.error)
             return result
+        logger.info(
+            "open %s: %.0f ms, %d pages, version %s, %.1f MB",
+            path,
+            (time.perf_counter() - started) * 1000,
+            self.page_count(),
+            self.pdf_version_label(),
+            Path(path).stat().st_size / 1e6,
+        )
         self.document = result.value
         self.document_path = path
         self.selected_page = 0
@@ -478,22 +500,37 @@ class AppState:
         self._notify()
         return result
 
-    def search(self, query: str) -> list[int]:
+    def search(
+        self,
+        query: str,
+        progress: Callable[[int, int], None] | None = None,
+    ) -> list[int]:
         """Return page indices whose OCR text contains the query.
 
         Retourne les index des pages dont le texte OCR contient la requête.
-        Pages not yet OCR'd are processed on the fly.
+        Pages not yet OCR'd are processed on the fly. `progress(done, total)`
+        is called after each page (for the UI progress bar).
         """
         if not query.strip():
             return []
+        started = time.perf_counter()
         needle = query.lower()
         matches: list[int] = []
-        for index in range(self.page_count()):
+        total = self.page_count()
+        for index in range(total):
             if index not in self.page_ocr:
                 self.ocr_page(index)
             text = self.page_ocr.get(index, "")
             if needle in text.lower():
                 matches.append(index)
+            if progress is not None:
+                progress(index + 1, total)
+        logger.info(
+            "search done in %.1f s: %d match(es) on %d page(s)",
+            time.perf_counter() - started,
+            len(matches),
+            total,
+        )
         return matches
 
     def set_metadata(self, metadata: dict[str, str]) -> Result[None, str]:
@@ -618,11 +655,19 @@ class AppState:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         out = self.cache_dir / f"{prefix}{index}_{dpi}.png"
         if out.exists():
+            logger.debug("render cache hit: page %d @%d dpi", index, dpi)
             self._sweep_cache(doc_id[:8], revision=revision)
             return Ok(out)
+        started = time.perf_counter()
         result = self.page_image(index, dpi)
         if isinstance(result, Err):
             return result
+        logger.debug(
+            "rendered page %d @%d dpi in %.0f ms",
+            index,
+            dpi,
+            (time.perf_counter() - started) * 1000,
+        )
         from PIL import Image
 
         buffer = result.value
@@ -680,12 +725,18 @@ class AppState:
         """
         if self.document is None:
             return Err("no document open")
+        started = time.perf_counter()
         image_result = self.page_image(index, self.ocr_dpi())
         if isinstance(image_result, Err):
             return image_result
         enhanced = self.enhancer.enhance(image_result.value)
         if isinstance(enhanced, Err):
             return enhanced
+        logger.info(
+            "enhance page %d done in %.0f ms",
+            index,
+            (time.perf_counter() - started) * 1000,
+        )
         global_index = self._to_global(index)
         if isinstance(global_index, Err):
             return global_index
@@ -702,6 +753,7 @@ class AppState:
         """
         if self.document is None:
             return Err("no document open")
+        started = time.perf_counter()
         image_result = self.page_image(index, self.ocr_dpi())
         if isinstance(image_result, Err):
             return image_result
@@ -710,6 +762,12 @@ class AppState:
         )
         if isinstance(blocks_result, Err):
             return blocks_result
+        logger.info(
+            "ocr page %d done in %.0f ms (%d blocks)",
+            index,
+            (time.perf_counter() - started) * 1000,
+            len(blocks_result.value),
+        )
         blocks = blocks_result.value
         text = "\n".join(block.text for block in blocks)
         self.page_ocr[index] = text
@@ -771,13 +829,28 @@ class AppState:
         """
         if self.document is None:
             return Err("no document open")
-        return self.pdf_engine.export(
+        started = time.perf_counter()
+        result = self.pdf_engine.export(
             self.document.document_id,
             destination_path,
             flatten=flatten,
             watermark=watermark,
             password=password,
         )
+        if isinstance(result, Ok):
+            logger.info(
+                "export done in %.0f ms -> %s (%.1f MB, flatten=%s, watermark=%s, "
+                "password=%s)",
+                (time.perf_counter() - started) * 1000,
+                destination_path,
+                Path(destination_path).stat().st_size / 1e6,
+                flatten,
+                bool(watermark),
+                bool(password),
+            )
+        else:
+            logger.warning("export failed: %s", result.error)
+        return result
 
     def load_release_notes(self) -> str:
         """Read the changelog shown on the release-notes page.

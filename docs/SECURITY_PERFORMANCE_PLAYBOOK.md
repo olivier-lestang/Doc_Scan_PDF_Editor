@@ -21,11 +21,16 @@ Companion docs: [SECURITY.md](../SECURITY.md) (vulnerability reporting),
 
 ### Where files live (and who can read them)
 
-- Settings: OS user config dir via `platformdirs.user_config_dir`
-  (`%APPDATA%\LestangPdfEditor` on Windows, `~/Library/Application Support/...`
-  on macOS, `~/.config/...` on Linux). They persist across updates by design.
+- Settings: OS user config dir via `platformdirs.user_config_dir` with
+  `appauthor=False`, so paths are app-name first, no author folder:
+  `%APPDATA%\LestangPdfEditor` on Windows (roaming),
+  `~/Library/Application Support/LestangPdfEditor` on macOS,
+  `~/.config/LestangPdfEditor` on Linux. They persist across updates by
+  design.
 - Render cache (page PNGs) and OCR cache: OS user cache dir via
-  `user_cache_dir`. Rendered page PNGs persist there until evicted: the cache
+  `user_cache_dir` with `appauthor=False`: `%LOCALAPPDATA%\LestangPdfEditor\Cache`
+  on Windows, `~/Library/Caches/LestangPdfEditor` on macOS,
+  `~/.cache/LestangPdfEditor` on Linux. Rendered page PNGs persist there until evicted: the cache
   is keyed by session `revision`, orphans are swept on access, capped at
   `CACHE_MAX_FILES` (300) per document with LRU eviction, and deleted when the
   document is closed.
@@ -60,6 +65,23 @@ Companion docs: [SECURITY.md](../SECURITY.md) (vulnerability reporting),
 - No secrets, tokens or credentials in the repo; secret scanning is on.
   Report vulnerabilities privately per [SECURITY.md](../SECURITY.md). Never
   log document content.
+
+### Logging & progress (diagnosing freezes)
+
+- `core/logging_setup.py` configures a rotating log file
+  (`app.log`, 2 MB x 3 backups) in the OS per-user log dir
+  (`platformdirs.user_log_dir` with `appauthor=False`:
+  `%LOCALAPPDATA%\LestangPdfEditor\Logs\app.log` on Windows,
+  `~/Library/Logs/LestangPdfEditor/app.log` on macOS,
+  `~/.local/state/LestangPdfEditor/log/app.log` on Linux) plus the console. Logs contain paths,
+  sizes, page counts and **timings** (open, render per page, OCR, enhance,
+  search, export, startup steps, one INFO line per user action) — never
+  document content (no OCR text, no annotation text, no passwords).
+- The UI shows progress: a boot progress bar in `main()`, a progress bar on
+  the home view while opening a file, and a progress bar in the document
+  view's status bar during heavy actions (indeterminate for open/OCR/
+  enhance/export/insert, determinate page-by-page for full-document search
+  via the `progress` callback of `AppState.search`).
 
 ## 2. Performance model
 
