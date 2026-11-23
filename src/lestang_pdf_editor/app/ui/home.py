@@ -10,8 +10,7 @@ import flet as ft
 
 from lestang_pdf_editor import __version__
 from lestang_pdf_editor.app.state import AppState
-from lestang_pdf_editor.app.ui.common import page_scaffold, show_message
-from lestang_pdf_editor.core.result import Ok
+from lestang_pdf_editor.app.ui.common import page_scaffold
 
 ALLOWED_EXTENSIONS = ["pdf", "png", "jpg", "jpeg", "tif", "tiff", "bmp"]
 """File extensions accepted by the open-file picker.
@@ -87,17 +86,14 @@ def build_home_view(state: AppState) -> None:
 
 
 def _open_path(state: AppState, path: str) -> None:
-    """Open a file from the recent list.
+    """Open a file from the recent list, off the UI thread.
 
-    Ouvre un fichier depuis la liste des récents.
+    Ouvre un fichier depuis la liste des récents, hors du thread UI pour
+    ne pas figer l'accueil sur un gros fichier.
     """
-    from lestang_pdf_editor.app.ui.document_view import build_document_view
+    from lestang_pdf_editor.app.ui.document_view import _open_async, _spawn
 
-    result = state.open_path(path)
-    if isinstance(result, Ok):
-        build_document_view(state)
-    else:
-        show_message(state.page, "Error", result.error)
+    _spawn(state.page, _open_async(state, path))
 
 
 def _on_pick(state: AppState, event: ft.FilePickerResultEvent) -> None:

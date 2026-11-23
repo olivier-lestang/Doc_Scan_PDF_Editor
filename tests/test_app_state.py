@@ -211,3 +211,85 @@ def test_duplicate_search_metadata_version_and_encrypted_export(
     annots = reader.pages[0].get("/Annots") or []
     contents = [str(a.get_object().get("/Contents", "")) for a in annots]
     assert "BROUILLON" in contents
+
+
+def test_render_cache_revision_sweep_and_close(tmp_path: Path) -> None:
+    """Page PNGs are cached per revision; mutations invalidate; close cleans.
+
+    Les PNG de pages sont mis en cache par révision ; une modification
+    invalide l'ancien cache (fichiers orphelins balayés) et la fermeture
+    du document libère session moteur et cache.
+    """
+    state = make_state(tmp_path)
+    pdf_path = tmp_path / "doc.pdf"
+    make_pdf(pdf_path)
+    assert isinstance(state.open_path(str(pdf_path)), Ok)
+
+    first = state.page_png_path(0, 72)
+    assert isinstance(first, Ok) and first.value.exists()
+    mtime = first.value.stat().st_mtime_ns
+
+    again = state.page_png_path(0, 72)
+    assert isinstance(again, Ok) and again.value == first.value
+    assert again.value.stat().st_mtime_ns == mtime  # cache hit: no re-render
+
+    sized = state.page_png_and_size(0, 72)
+    assert isinstance(sized, Ok)
+    _path, width, height = sized.value
+    assert (width, height) == (595, 842)  # A4 at 72 dpi
+
+    doc_id = state.document.document_id
+    assert state.pdf_engine.revision(doc_id) == 0
+    assert isinstance(state.delete_page(), Ok)  # 2 pages -> 1, revision 1
+    assert state.pdf_engine.revision(doc_id) == 1
+
+    after = state.page_png_path(0, 72)
+    assert isinstance(after, Ok) and after.value != first.value
+    assert after.value.exists()
+    assert not first.value.exists()  # orphan from the old revision swept
+
+    state.close_document()
+    assert state.document is None
+    assert state.pdf_engine.revision(doc_id) == 0  # session dropped
+    assert not after.value.exists()  # cache files removed on close
+
+
+def test_live_indices_map_to_global_after_delete(tmp_path: Path) -> None:
+    """After a deletion, live indices hit the right pages (render + export).
+
+    Après une suppression, les index live pointent vers les bonnes pages
+    globales (rendu des vignettes + export des annotations).
+    """
+    state = make_state(tmp_path)
+    pdf_path = tmp_path / "three.pdf"
+    writer = PdfWriter()
+    for _ in range(3):
+        writer.add_blank_page(width=595, height=842)
+    with pdf_path.open("wb") as handle:
+        writer.write(handle)
+    assert isinstance(state.open_path(str(pdf_path)), Ok)
+    assert state.page_count() == 3
+
+    state.selected_page = 0
+    assert isinstance(state.delete_page(), Ok)  # deletes global page 0
+    assert state.page_count() == 2
+    doc_id = state.document.document_id
+    assert state.pdf_engine.live_indices(doc_id) == [1, 2]
+
+    png = state.page_png_path(0, 72)  # live 0 -> global 1: must render
+    assert isinstance(png, Ok) and png.value.exists()
+
+    assert isinstance(
+        state.add_annotation(
+            TextAnnotation(page_index=0, rect=(0.1, 0.1, 0.4, 0.1), content="note")
+        ),
+        Ok,
+    )
+    assert state.annotations_for_page(0)[0].page_index == 1  # stored global
+    out = tmp_path / "out.pdf"
+    assert isinstance(state.export_pdf(str(out)), Ok)
+    reader = PdfReader(str(out))
+    assert len(reader.pages) == 2
+    annots = reader.pages[0].get("/Annots") or []
+    assert any(str(a.get_object()["/Contents"]) == "note" for a in annots)
+    assert not (reader.pages[1].get("/Annots"))

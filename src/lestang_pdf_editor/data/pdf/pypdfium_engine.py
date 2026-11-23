@@ -76,9 +76,11 @@ class _OpenDocument:
     rotations: dict[int, int] = field(default_factory=dict)
     deleted: set[int] = field(default_factory=set)
     extra_pdfs: list[str] = field(default_factory=list)
+    extra_counts: list[int] = field(default_factory=list)
     copies: list[int] = field(default_factory=list)
     annotations: list[Annotation] = field(default_factory=list)
     metadata: dict[str, str] = field(default_factory=dict)
+    revision: int = 0
 
 
 def _pil_to_buffer(image: Image.Image) -> ImageBuffer:
@@ -278,15 +280,38 @@ class PypdfiumPdfEngine:
         """
         return self._documents.get(document_id)
 
+    def revision(self, document_id: str) -> int:
+        """Return the session revision (bumped on every page mutation).
+
+        Retourne la révision de la session (incrémentée à chaque
+        modification de page) — utilisée pour invalider le cache de rendu.
+        """
+        session = self._session(document_id)
+        return session.revision if session else 0
+
+    def close(self, document_id: str) -> None:
+        """Drop the session and free the underlying PDF document.
+
+        Supprime la session et libère le document PDF sous-jacent.
+        """
+        self._documents.pop(document_id, None)
+
+    def _live_list(self, session: _OpenDocument) -> list[int]:
+        """Global indices of the live pages (deleted ones excluded), in order.
+
+        Indices globaux des pages vivantes (supprimées exclues), dans l'ordre.
+        """
+        total_all = (
+            session.base_page_count + sum(session.extra_counts) + len(session.copies)
+        )
+        return [i for i in range(total_all) if i not in session.deleted]
+
     def _total_pages(self, session: _OpenDocument) -> int:
         """Total page count including inserted PDFs, minus deleted pages.
 
         Nombre total de pages (PDF insérés inclus, suppressions exclues).
         """
-        extra = sum(len(PdfReader(p).pages) for p in session.extra_pdfs)
-        return (
-            session.base_page_count + extra + len(session.copies) - len(session.deleted)
-        )
+        return len(self._live_list(session))
 
     def total_pages(self, document_id: str) -> int:
         """Return the live page count of a document (0 if unknown).
@@ -298,6 +323,28 @@ class PypdfiumPdfEngine:
             return 0
         return self._total_pages(session)
 
+    def live_indices(self, document_id: str) -> list[int]:
+        """Return the global indices of live pages, in display order.
+
+        Retourne les indices globaux des pages vivantes, dans l'ordre
+        d'affichage.
+        """
+        session = self._session(document_id)
+        if session is None:
+            return []
+        return self._live_list(session)
+
+    def to_global(self, document_id: str, live_index: int) -> Result[int, str]:
+        """Map a live index (deletions applied) to the global page index.
+
+        Convertit un index live (suppressions appliquées, base 0) en index
+        global de page interne.
+        """
+        live = self.live_indices(document_id)
+        if 0 <= live_index < len(live):
+            return Ok(live[live_index])
+        return Err(f"invalid page index: {live_index}")
+
     def _resolve(self, session: _OpenDocument, index: int) -> tuple[str, int]:
         """Map a global page index to (source_path, local_index).
 
@@ -306,8 +353,9 @@ class PypdfiumPdfEngine:
         if index < session.base_page_count:
             return session.source_path, index
         local = index - session.base_page_count
-        for extra_path in session.extra_pdfs:
-            count = len(PdfReader(extra_path).pages)
+        for extra_path, count in zip(
+            session.extra_pdfs, session.extra_counts, strict=True
+        ):
             if local < count:
                 return extra_path, local
             local -= count
@@ -327,6 +375,7 @@ class PypdfiumPdfEngine:
         if session is None:
             return Err(f"unknown document: {document_id}")
         session.replacements[page_index] = image
+        session.revision += 1
         return Ok(None)
 
     def rotate_page(
@@ -349,6 +398,7 @@ class PypdfiumPdfEngine:
             pil = _buffer_to_pil(session.replacements[page_index])
             pil = pil.rotate(-degrees, expand=True)
             session.replacements[page_index] = _pil_to_buffer(pil)
+        session.revision += 1
         return Ok(None)
 
     def delete_page(self, document_id: str, page_index: int) -> Result[None, str]:
@@ -364,6 +414,7 @@ class PypdfiumPdfEngine:
         session.deleted.add(page_index)
         session.replacements.pop(page_index, None)
         session.rotations.pop(page_index, None)
+        session.revision += 1
         return Ok(None)
 
     def insert_pdf(self, document_id: str, path: str) -> Result[int, str]:
@@ -379,6 +430,8 @@ class PypdfiumPdfEngine:
         except Exception as exc:
             return Err(f"cannot read {path}: {exc}")
         session.extra_pdfs.append(path)
+        session.extra_counts.append(count)
+        session.revision += 1
         return Ok(count)
 
     def duplicate_page(self, document_id: str, page_index: int) -> Result[int, str]:
@@ -392,6 +445,7 @@ class PypdfiumPdfEngine:
         if page_index in session.deleted or page_index >= self._total_pages(session):
             return Err(f"invalid page index: {page_index}")
         session.copies.append(page_index)
+        session.revision += 1
         return Ok(self._total_pages(session))
 
     def set_metadata(

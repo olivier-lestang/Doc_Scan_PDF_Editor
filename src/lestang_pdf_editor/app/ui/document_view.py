@@ -4,9 +4,11 @@ Vue éditeur de document : ruban, canevas centré et zoomable, panneau
 latéral (annotations + OCR).
 """
 
+import asyncio
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from pathlib import Path
+from typing import Any
 
 import flet as ft
 
@@ -42,6 +44,33 @@ ANNOTATION_ICONS = {
 
 Icône par type d'annotation dans la liste du panneau latéral.
 """
+
+
+def _schedule(
+    page: ft.Page, handler: Callable[..., Coroutine[Any, Any, Any]], *args: Any
+) -> None:
+    """Schedule an async UI task on the page loop (sync fallback if headless).
+
+    Planifie une tâche UI async sur la boucle de la page (repli synchrone
+    si la page n'a pas de boucle, ex. tests sans affichage).
+    """
+    run_task = getattr(page, "run_task", None)
+    if callable(run_task):
+        run_task(handler, *args)
+    else:
+        asyncio.run(handler(*args))
+
+
+def _spawn(page: ft.Page, coro: Coroutine[Any, Any, Any]) -> None:
+    """Run a coroutine as a background UI task without blocking the caller.
+
+    Exécute une coroutine en tâche UI d'arrière-plan sans bloquer l'appelant.
+    """
+
+    async def consume() -> None:
+        await coro
+
+    _schedule(page, consume)
 
 
 def build_document_view(state: AppState) -> None:
@@ -83,8 +112,8 @@ def build_document_view(state: AppState) -> None:
     search_field: ft.TextField = ft.TextField(
         hint_text=state.t("doc.search_hint"),
         width=260,
-        on_submit=lambda _e: _run_search(
-            state, search_field.value or "", search_count, refresh
+        on_submit=lambda _e: _spawn(
+            page, _search_async(state, search_field.value or "", search_count, refresh)
         ),
     )
     search_bar = ft.Container(
@@ -96,8 +125,14 @@ def build_document_view(state: AppState) -> None:
                     icon=ft.Icons.ARROW_FORWARD,
                     tooltip=state.t("ribbon.next"),
                     on_click=lambda _e: (
-                        _run_search(
-                            state, search_field.value or "", search_count, refresh
+                        _spawn(
+                            page,
+                            _search_async(
+                                state,
+                                search_field.value or "",
+                                search_count,
+                                refresh,
+                            ),
                         )
                         if not state._search_matches
                         else _do_search(state, refresh)
@@ -113,6 +148,8 @@ def build_document_view(state: AppState) -> None:
         visible=False,
     )
 
+    thumb_images: list[ft.Image] = []
+
     def refresh() -> None:
         nonlocal gesture
         gesture = _refresh_all(
@@ -124,7 +161,12 @@ def build_document_view(state: AppState) -> None:
             ocr_text,
             status,
             zoom_label,
+            thumb_images,
         )
+        state._render_generation += 1
+        generation = state._render_generation
+        _schedule(page, _fill_thumbnails, state, thumb_images, generation)
+        _schedule(page, _render_canvas, state, canvas_stack, generation)
         page.update()
 
     def toggle_tool(tool: str) -> None:
@@ -152,8 +194,10 @@ def build_document_view(state: AppState) -> None:
         "zoom_reset": lambda: _zoom_action(state, refresh, "reset"),
         "fit_width": lambda: _fit(state, refresh, "width"),
         "fit_page": lambda: _fit(state, refresh, "page"),
-        "enhance": lambda: _enhance(state, refresh, snack),
-        "ocr": lambda: _run_ocr(state, ocr_text, status, refresh, snack),
+        "enhance": lambda: _spawn(page, _enhance_async(state, refresh, snack)),
+        "ocr": lambda: _spawn(
+            page, _ocr_async(state, ocr_text, status, refresh, snack)
+        ),
         "search": lambda: _toggle_search(state, search_bar, refresh),
         "duplicate": lambda: _duplicate(state, refresh, snack),
         "properties": lambda: _open_properties_dialog(state),
@@ -233,50 +277,47 @@ def _refresh_all(
     ocr_text: ft.TextField,
     status: ft.Text,
     zoom_label: ft.Text,
+    thumb_images: list[ft.Image],
 ) -> ft.GestureDetector:
-    """Rebuild thumbnails, canvas, side panel and status bar from state.
+    """Rebuild the lightweight structure (no rendering) from the state.
 
-    Reconstruit vignettes, canevas, panneau latéral et barre de statut.
+    Reconstruit la structure légère (sans rendu d'images) depuis l'état :
+    les vignettes et le canevas sont remplis ensuite en arrière-plan par
+    _fill_thumbnails / _render_canvas, pour ne jamais bloquer l'UI même
+    sur un gros PDF.
     """
     thumbnails.controls.clear()
+    thumb_images.clear()
     total = state.page_count()
     for index in range(total):
-        png = state.page_png_path(index, 72)
-        if isinstance(png, Ok):
-            thumbnails.controls.append(
-                ft.GestureDetector(
-                    content=ft.Image(src=str(png.value), width=120),
-                    on_tap=lambda _e, i=index: _select_page(state, i),
-                )
+        image = ft.Image(width=120, height=160, fit=ft.ImageFit.COVER)
+        thumb_images.append(image)
+        thumbnails.controls.append(
+            ft.GestureDetector(
+                content=ft.Stack(
+                    controls=[
+                        ft.Container(
+                            image,
+                            width=120,
+                            height=160,
+                            bgcolor="#ECEFF1",
+                            border_radius=4,
+                        ),
+                        ft.Container(
+                            ft.Text(str(index + 1), size=12, color="#607D8B"),
+                            alignment=ft.alignment.center,
+                        ),
+                    ]
+                ),
+                on_tap=lambda _e, i=index: _select_page(state, i),
             )
+        )
     annots_list.controls.clear()
     for position, annotation in enumerate(state.annotations()):
         annots_list.controls.append(_annotation_row(state, position, annotation))
     canvas_stack.controls.clear()
     if state.document is not None and gesture is not None:
         index = state.selected_page
-        png = state.page_png_path(index, state.display_dpi())
-        if isinstance(png, Ok):
-            from PIL import Image
-
-            with Image.open(png.value) as img:
-                base_width, base_height = img.size
-            scale = state.zoom
-            canvas_width = int(base_width * scale)
-            canvas_height = int(base_height * scale)
-            canvas_stack.width = canvas_width
-            canvas_stack.height = canvas_height
-            canvas_stack.controls.append(
-                ft.Image(
-                    src=str(png.value),
-                    width=canvas_width,
-                    height=canvas_height,
-                    fit=ft.ImageFit.FILL,
-                )
-            )
-            canvas_stack.controls.extend(
-                _annotation_overlays(state, canvas_width, canvas_height)
-            )
         ocr_text.value = state.page_ocr.get(index, "")
         lang = state.page_language.get(index, "")
         name = Path(state.document_path or "").name
@@ -288,6 +329,69 @@ def _refresh_all(
         zoom_label.value = f"{int(state.zoom * 100)}%"
         gesture.mouse_cursor = TOOL_CURSORS[state.tool]
     return gesture
+
+
+async def _fill_thumbnails(
+    state: AppState, thumb_images: list[ft.Image], generation: int
+) -> None:
+    """Render thumbnails in the background, one page at a time.
+
+    Rend les vignettes en arrière-plan, une page à la fois (le cache PNG
+    évite de re-rendre les pages déjà vues).
+    """
+    page = state.page
+    loop = asyncio.get_running_loop()
+    total = state.page_count()
+    for index in range(min(total, len(thumb_images))):
+        if generation != state._render_generation:
+            return
+        result = await loop.run_in_executor(None, state.page_png_path, index, 72)
+        if generation != state._render_generation:
+            return
+        if isinstance(result, Ok):
+            thumb_images[index].src = str(result.value)
+        if index % 4 == 3:
+            page.update()
+    page.update()
+
+
+async def _render_canvas(
+    state: AppState, canvas_stack: ft.Stack, generation: int
+) -> None:
+    """Render the current page canvas in the background.
+
+    Rend le canevas de la page courante en arrière-plan (une seule page,
+    servie par le cache PNG si déjà rendue).
+    """
+    page = state.page
+    loop = asyncio.get_running_loop()
+    if state.document is None:
+        return
+    index = state.selected_page
+    dpi = state.display_dpi()
+    result = await loop.run_in_executor(None, state.page_png_and_size, index, dpi)
+    if generation != state._render_generation:
+        return
+    canvas_stack.controls.clear()
+    if isinstance(result, Ok):
+        path, base_width, base_height = result.value
+        scale = state.zoom
+        canvas_width = int(base_width * scale)
+        canvas_height = int(base_height * scale)
+        canvas_stack.width = canvas_width
+        canvas_stack.height = canvas_height
+        canvas_stack.controls.append(
+            ft.Image(
+                src=str(path),
+                width=canvas_width,
+                height=canvas_height,
+                fit=ft.ImageFit.FILL,
+            )
+        )
+        canvas_stack.controls.extend(
+            _annotation_overlays(state, canvas_width, canvas_height)
+        )
+    page.update()
 
 
 def _annotation_row(
@@ -337,9 +441,7 @@ def _annotation_overlays(
     courante (infobulle auteur + horodatage au survol d'un texte).
     """
     overlays: list[ft.Container] = []
-    for annotation in state.annotations():
-        if annotation.page_index != state.selected_page:
-            continue
+    for annotation in state.annotations_for_page(state.selected_page):
         x, y, w, h = annotation.rect
         if isinstance(annotation, TextAnnotation):
             tooltip = ""
@@ -659,14 +761,15 @@ def _undo(
     refresh()
 
 
-def _enhance(
+async def _enhance_async(
     state: AppState, refresh: Callable[[], None], snack: Callable[[str], None]
 ) -> None:
-    """Run the one-tap enhancement on the current page.
+    """Run the one-tap enhancement off the UI thread.
 
-    Lance l'amélioration en un clic sur la page courante.
+    Lance l'amélioration en un clic hors du thread UI (gros fichiers).
     """
-    result = state.enhance_page(state.selected_page)
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, state.enhance_page, state.selected_page)
     if isinstance(result, Ok):
         snack(state.t("doc.enhanced"))
     else:
@@ -674,18 +777,20 @@ def _enhance(
     refresh()
 
 
-def _run_ocr(
+async def _ocr_async(
     state: AppState,
     ocr_text: ft.TextField,
     status: ft.Text,
     refresh: Callable[[], None],
     snack: Callable[[str], None],
 ) -> None:
-    """Run OCR on the current page and show the recognized text.
+    """Run OCR on the current page off the UI thread.
 
-    Lance l'OCR sur la page courante et affiche le texte reconnu.
+    Lance l'OCR sur la page courante hors du thread UI et affiche le texte
+    reconnu.
     """
-    result = state.ocr_page(state.selected_page)
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, state.ocr_page, state.selected_page)
     if isinstance(result, Ok):
         ocr_text.value = state.page_ocr.get(state.selected_page, "")
         snack(f"OCR: {len(result.value)} blocks")
@@ -695,14 +800,24 @@ def _run_ocr(
 
 
 def _on_pick_open(state: AppState, event: ft.FilePickerResultEvent) -> None:
-    """Reopen another file from the document view (Ctrl+O).
+    """Reopen another file from the document view (Ctrl+O), off the UI thread.
 
-    Rouvre un autre fichier depuis la vue document (Ctrl+O).
+    Rouvre un autre fichier depuis la vue document (Ctrl+O), hors du thread
+    UI pour ne pas figer l'affichage sur un gros fichier.
     """
     if not event.files:
         return
     path = event.files[0].path or str(Path(event.files[0].name))
-    result = state.open_path(path)
+    _spawn(state.page, _open_async(state, path))
+
+
+async def _open_async(state: AppState, path: str) -> None:
+    """Open a file off the UI thread, then build the document view.
+
+    Ouvre un fichier hors du thread UI, puis construit la vue document.
+    """
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, state.open_path, path)
     if isinstance(result, Ok):
         build_document_view(state)
     else:
@@ -712,12 +827,22 @@ def _on_pick_open(state: AppState, event: ft.FilePickerResultEvent) -> None:
 def _on_insert(state: AppState, event: ft.FilePickerResultEvent) -> None:
     """Insert all pages of a picked PDF at the end (ribbon action).
 
-    Insère toutes les pages d'un PDF choisi à la fin (action du ruban).
+    Insère toutes les pages d'un PDF choisi à la fin (action du ruban),
+    hors du thread UI.
     """
     if not event.files:
         return
     path = event.files[0].path or str(Path(event.files[0].name))
-    result = state.insert_pdf(path)
+    _spawn(state.page, _insert_async(state, path))
+
+
+async def _insert_async(state: AppState, path: str) -> None:
+    """Insert a PDF off the UI thread, then notify the view.
+
+    Insère un PDF hors du thread UI, puis notifie la vue.
+    """
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, state.insert_pdf, path)
     if isinstance(result, Ok):
         show_snackbar(state.page, f"+{result.value} pages")
         state._notify()
@@ -728,20 +853,35 @@ def _on_insert(state: AppState, event: ft.FilePickerResultEvent) -> None:
 def _on_save(state: AppState, event: ft.FilePickerResultEvent) -> None:
     """Handle the save-file result: export with the pending dialog options.
 
-    Gère le résultat du sélecteur de sauvegarde : exporte avec les options
-    de la boîte de dialogue d'export.
+    Gère le résultat du sélecteur de sauvegarde : lance l'export avec les
+    options de la boîte de dialogue, hors du thread UI.
     """
     if not event.path or state.document is None:
         return
+    _spawn(state.page, _export_async(state, event.path))
+
+
+async def _export_async(state: AppState, destination: str) -> None:
+    """Export the PDF off the UI thread, then show the result.
+
+    Exporte le PDF hors du thread UI, puis affiche le résultat.
+    """
+    from functools import partial
+
     pending = state.pending_export
-    result = state.export_pdf(
-        event.path,
-        flatten=bool(pending.get("flatten", False)),
-        watermark=str(pending.get("watermark") or "") or None,
-        password=str(pending.get("password") or "") or None,
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        None,
+        partial(
+            state.export_pdf,
+            destination,
+            flatten=bool(pending.get("flatten", False)),
+            watermark=str(pending.get("watermark") or "") or None,
+            password=str(pending.get("password") or "") or None,
+        ),
     )
     if isinstance(result, Ok):
-        show_snackbar(state.page, f"Saved: {event.path}")
+        show_snackbar(state.page, f"Saved: {destination}")
     else:
         show_message(state.page, "Error", result.error)
 
@@ -757,19 +897,20 @@ def _toggle_search(
     refresh()
 
 
-def _run_search(
+async def _search_async(
     state: AppState,
     query: str,
     search_count: ft.Text,
     refresh: Callable[[], None],
 ) -> None:
-    """Run the search over all pages (OCR on the fly) and show the count.
+    """Run the search over all pages off the UI thread and show the count.
 
-    Lance la recherche sur toutes les pages (OCR à la volée) et affiche le
-    nombre de résultats.
+    Lance la recherche sur toutes les pages (OCR à la volée) hors du thread
+    UI et affiche le nombre de résultats.
     """
+    loop = asyncio.get_running_loop()
     state._search_query = query
-    state._search_matches = state.search(query)
+    state._search_matches = await loop.run_in_executor(None, state.search, query)
     state._search_position = -1
     search_count.value = state.t("doc.search_results").format(
         n=len(state._search_matches)

@@ -8,7 +8,7 @@ exercised headless in tests.
 
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -124,6 +124,13 @@ def default_cache_dir() -> Path:
     return Path(user_cache_dir("LestangPdfEditor", "Olivier Lestang"))
 
 
+CACHE_MAX_FILES = 300
+"""Maximum number of cached page PNGs kept per document (LRU by mtime).
+
+Nombre maximal de PNG de pages en cache par document (LRU par date).
+"""
+
+
 class AppState:
     """Holds engines, settings and the currently open document.
 
@@ -174,6 +181,7 @@ class AppState:
         self._search_query = ""
         self._search_matches: list[int] = []
         self._search_position = -1
+        self._render_generation = 0
         self.pending_export: dict[str, object] = {}
         self._listeners: list[Callable[[], None]] = []
 
@@ -317,6 +325,8 @@ class AppState:
         Ouvre un fichier PDF ou image et sélectionne sa première page.
         Also records the file in the persisted recent-files list.
         """
+        if self.document is not None:
+            self.close_document()
         result = self.pdf_engine.open(path)
         if isinstance(result, Err):
             return result
@@ -325,6 +335,8 @@ class AppState:
         self.selected_page = 0
         self.page_ocr.clear()
         self.page_language.clear()
+        self._search_matches = []
+        self._search_position = -1
         self._record_recent_file(path)
         self._notify()
         return Ok(result.value.document_id)
@@ -378,6 +390,16 @@ class AppState:
             return 0
         return self.pdf_engine.total_pages(self.document.document_id)
 
+    def _to_global(self, live_index: int) -> Result[int, str]:
+        """Convert a live page index (deletions applied) to a global one.
+
+        Convertit un index de page live (suppressions appliquées, base 0)
+        en index global interne du moteur.
+        """
+        if self.document is None:
+            return Err("no document open")
+        return self.pdf_engine.to_global(self.document.document_id, live_index)
+
     def next_page(self) -> None:
         """Select the next page if any.
 
@@ -403,8 +425,11 @@ class AppState:
         """
         if self.document is None:
             return Err("no document open")
+        global_index = self._to_global(self.selected_page)
+        if isinstance(global_index, Err):
+            return global_index
         return self.pdf_engine.rotate_page(
-            self.document.document_id, self.selected_page, degrees
+            self.document.document_id, global_index.value, degrees
         )
 
     def delete_page(self) -> Result[None, str]:
@@ -414,8 +439,11 @@ class AppState:
         """
         if self.document is None:
             return Err("no document open")
+        global_index = self._to_global(self.selected_page)
+        if isinstance(global_index, Err):
+            return global_index
         result = self.pdf_engine.delete_page(
-            self.document.document_id, self.selected_page
+            self.document.document_id, global_index.value
         )
         if isinstance(result, Ok):
             self.selected_page = min(self.selected_page, self.page_count() - 1)
@@ -441,8 +469,11 @@ class AppState:
         """
         if self.document is None:
             return Err("no document open")
+        global_index = self._to_global(self.selected_page)
+        if isinstance(global_index, Err):
+            return global_index
         result = self.pdf_engine.duplicate_page(
-            self.document.document_id, self.selected_page
+            self.document.document_id, global_index.value
         )
         self._notify()
         return result
@@ -542,13 +573,20 @@ class AppState:
             self.set_zoom(min(avail_w / base_w, avail_h / base_h))
 
     def close_document(self) -> None:
-        """Close the current document.
+        """Close the current document and free engine + cache resources.
 
-        Ferme le document courant.
+        Ferme le document courant et libère la session moteur ainsi que le
+        cache de rendu associé.
         """
+        if self.document is not None:
+            doc_id = self.document.document_id
+            self.pdf_engine.close(doc_id)
+            self._sweep_cache(doc_id[:8], revision=None)
         self.document = None
         self.document_path = ""
         self.selected_page = 0
+        self._search_matches = []
+        self._search_position = -1
         self._notify()
 
     def page_image(self, index: int, dpi: int) -> Result[ImageBuffer, str]:
@@ -558,14 +596,30 @@ class AppState:
         """
         if self.document is None:
             return Err("no document open")
-        return self.pdf_engine.page_image(self.document.document_id, index, dpi)
+        global_index = self._to_global(index)
+        if isinstance(global_index, Err):
+            return global_index
+        return self.pdf_engine.page_image(
+            self.document.document_id, global_index.value, dpi
+        )
 
     def page_png_path(self, index: int, dpi: int) -> Result[Path, str]:
-        """Render a page to a PNG file in the cache dir and return its path.
+        """Return the cached PNG of a page, rendering it once if needed.
 
-        Rend une page dans un fichier PNG du répertoire de cache et
-        retourne son chemin.
+        Retourne le PNG en cache d'une page, en le rendant une seule fois
+        si nécessaire. La clé de cache inclut la révision de la session :
+        toute modification de page invalide les anciens fichiers.
         """
+        if self.document is None:
+            return Err("no document open")
+        doc_id = self.document.document_id
+        revision = self.pdf_engine.revision(doc_id)
+        prefix = f"page_{doc_id[:8]}_r{revision}_"
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        out = self.cache_dir / f"{prefix}{index}_{dpi}.png"
+        if out.exists():
+            self._sweep_cache(doc_id[:8], revision=revision)
+            return Ok(out)
         result = self.page_image(index, dpi)
         if isinstance(result, Err):
             return result
@@ -573,11 +627,50 @@ class AppState:
 
         buffer = result.value
         image = Image.frombytes("RGB", (buffer.width, buffer.height), buffer.data)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        doc_id = self.document.document_id[:8] if self.document else "none"
-        out = self.cache_dir / f"page_{doc_id}_{index}_{dpi}.png"
         image.save(out)
+        self._sweep_cache(doc_id[:8], revision=revision)
         return Ok(out)
+
+    def page_png_and_size(
+        self, index: int, dpi: int
+    ) -> Result[tuple[Path, int, int], str]:
+        """Return the cached PNG path of a page plus its pixel size.
+
+        Retourne le chemin du PNG en cache d'une page et sa taille en
+        pixels (sans re-rendre si le cache est valide).
+        """
+        png = self.page_png_path(index, dpi)
+        if isinstance(png, Err):
+            return png
+        from PIL import Image
+
+        with Image.open(png.value) as img:
+            width, height = img.size
+        return Ok((png.value, width, height))
+
+    def _sweep_cache(self, doc_prefix: str, revision: int | None) -> None:
+        """Delete stale/orphan cache files and enforce the per-doc cap.
+
+        Supprime les fichiers de cache obsolètes (autre révision, ou tous
+        ceux du document à sa fermeture) et applique le plafond
+        CACHE_MAX_FILES (LRU par date de modification).
+        """
+        if not self.cache_dir.exists():
+            return
+        files = sorted(
+            self.cache_dir.glob(f"page_{doc_prefix}_*.png"),
+            key=lambda p: p.stat().st_mtime,
+        )
+        keep_prefix = None if revision is None else f"page_{doc_prefix}_r{revision}_"
+        kept: list[Path] = []
+        for path in files:
+            if keep_prefix is not None and path.name.startswith(keep_prefix):
+                kept.append(path)
+            else:
+                path.unlink(missing_ok=True)
+        while len(kept) > CACHE_MAX_FILES:
+            oldest = kept.pop(0)
+            oldest.unlink(missing_ok=True)
 
     def enhance_page(self, index: int) -> Result[None, str]:
         """Apply one-tap enhancement to a page and store the result.
@@ -593,8 +686,11 @@ class AppState:
         enhanced = self.enhancer.enhance(image_result.value)
         if isinstance(enhanced, Err):
             return enhanced
+        global_index = self._to_global(index)
+        if isinstance(global_index, Err):
+            return global_index
         result = self.pdf_engine.set_page_image(
-            self.document.document_id, index, enhanced.value
+            self.document.document_id, global_index.value, enhanced.value
         )
         self._notify()
         return result
@@ -631,6 +727,10 @@ class AppState:
         """
         if self.document is None:
             return Err("no document open")
+        global_index = self._to_global(annotation.page_index)
+        if isinstance(global_index, Err):
+            return global_index
+        annotation = replace(annotation, page_index=global_index.value)
         result = self.pdf_engine.add_annotation(self.document.document_id, annotation)
         self._notify()
         return result
@@ -643,6 +743,19 @@ class AppState:
         if self.document is None:
             return ()
         return self.pdf_engine.annotations(self.document.document_id)
+
+    def annotations_for_page(self, live_index: int) -> tuple[Annotation, ...]:
+        """Return the annotations attached to one live page index.
+
+        Retourne les annotations attachées à un index de page live donné
+        (les annotations stockent l'index global en interne).
+        """
+        global_index = self._to_global(live_index)
+        if isinstance(global_index, Err):
+            return ()
+        return tuple(
+            a for a in self.annotations() if a.page_index == global_index.value
+        )
 
     def export_pdf(
         self,
