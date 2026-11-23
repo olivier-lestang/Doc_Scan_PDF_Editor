@@ -9,6 +9,7 @@
     "tool_text": "Ajouter du texte",
     "tool_rect": "Cadre",
     "tool_highlight": "Surlignage",
+    "tool_active": "Outil : {tool} \u2014 cliquez ou glissez sur la page",
     "enhance": "Am\u00e9liorer",
     "ocr": "OCR",
     "export": "Exporter en PDF",

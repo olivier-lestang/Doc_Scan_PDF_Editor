@@ -284,6 +284,13 @@ def build_document_view(state: AppState) -> None:
 
     gesture = ft.GestureDetector(
         content=canvas_stack,
+        # Set the cursor at construction time too: the Flutter client only
+        # wraps the detector in a MouseRegion if mouseCursor is non-null at
+        # first build, so it must never be None here.
+        # Pose aussi le curseur à la construction : le client Flutter ne
+        # masque le détecteur dans un MouseRegion que si mouseCursor est
+        # non nul au premier build ; il ne doit donc jamais être None ici.
+        mouse_cursor=TOOL_CURSORS[state.tool],
         # on_tap receives the raw event; on_tap_down is wrapped in TapEvent
         # with local_x/local_y (needed to place the text at the click point).
         on_tap_down=lambda e: _on_tap(state, e, canvas_stack, refresh),
@@ -400,6 +407,10 @@ def _refresh_all(
             f" — {len(state.annotations())} annotations"
             + (f" — lang: {lang}" if lang else "")
         )
+        if state.tool != "select":
+            status.value += " — " + state.t("doc.tool_active").replace(
+                "{tool}", state.t(f"doc.tool_{state.tool}")
+            )
         zoom_label.value = f"{int(state.zoom * 100)}%"
         gesture.mouse_cursor = TOOL_CURSORS[state.tool]
     return gesture

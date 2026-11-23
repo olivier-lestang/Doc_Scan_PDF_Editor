@@ -82,3 +82,8 @@ This file is also embedded in the app and shown on the "Release notes"
   (home, document, settings); version is single-sourced in
   `lestang_pdf_editor.__version__` and read dynamically by hatchling
   (`[tool.hatch.version]`), so `pyproject.toml` no longer duplicates it.
+- Text/drawing tools now set the mouse cursor at GestureDetector
+  construction time (the Flutter client only adds the MouseRegion wrapper
+  when `mouseCursor` is non-null at first build) and the bottom status bar
+  shows the active tool with a hint (click or drag on the page), in all 4
+  UI languages.
