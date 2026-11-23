@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is also embedded in the app and shown on the "Release notes"
 ("Nouveautés") page.
 
+## [0.2.0] - 2026-11-23
+
+### Added
+
+- App version shown in a bottom status bar, right-aligned on every view;
+  version single-sourced in `lestang_pdf_editor.__version__` (dynamic via
+  `[tool.hatch.version]`).
+- Active drawing tool shown in the bottom status bar with a click/drag
+  hint (i18n en/fr/es/zh).
+
+### Fixed
+
+- Mouse cursor for the text/rectangle/highlight tools: the canvas
+  GestureDetector now sets `mouse_cursor` at construction (the Flutter
+  client only adds the MouseRegion wrapper when `mouseCursor` is non-null
+  at first build), so the I-beam/click cursor now actually appears.
+- Word-like text boxes, progress bars + rotating log file, per-button
+  ribbon package (`ribbon/<tab>/<group>/<button>.py`).
+- Drag-drawn text boxes no longer vanish on mouse release (the open
+  editor overlay is preserved across canvas rebuilds).
+
 ## [Unreleased]
 
 ### Changed
@@ -78,3 +99,12 @@ This file is also embedded in the app and shown on the "Release notes"
 - Shortcuts: Ctrl+O open, Ctrl+E export, Ctrl+Z undo, Ctrl+0 reset zoom,
   Ctrl +/-, Ctrl+wheel zoom; snackbar feedback.
 - Undo stack for annotations (Ctrl+Z / ribbon).
+- App version shown in a bottom status bar, right-aligned on every view
+  (home, document, settings); version is single-sourced in
+  `lestang_pdf_editor.__version__` and read dynamically by hatchling
+  (`[tool.hatch.version]`), so `pyproject.toml` no longer duplicates it.
+- Text/drawing tools now set the mouse cursor at GestureDetector
+  construction time (the Flutter client only adds the MouseRegion wrapper
+  when `mouseCursor` is non-null at first build) and the bottom status bar
+  shows the active tool with a hint (click or drag on the page), in all 4
+  UI languages.

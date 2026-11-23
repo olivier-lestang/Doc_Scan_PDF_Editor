@@ -9,6 +9,7 @@
     "tool_text": "Add text",
     "tool_rect": "Rectangle",
     "tool_highlight": "Highlight",
+    "tool_active": "Tool: {tool} \u2014 click or drag on the page",
     "enhance": "Enhance",
     "ocr": "OCR",
     "export": "Export PDF",
