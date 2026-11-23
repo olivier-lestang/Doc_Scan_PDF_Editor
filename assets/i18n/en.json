@@ -9,6 +9,7 @@
     "tool_text": "Add text",
     "tool_rect": "Rectangle",
     "tool_highlight": "Highlight",
+    "tool_active": "Tool: {tool} \u2014 click or drag on the page",
     "enhance": "Enhance",
     "ocr": "OCR",
     "export": "Export PDF",
@@ -92,7 +93,10 @@
     "search": "Search",
     "properties": "Properties",
     "duplicate": "Duplicate page",
-    "duplicated": "Page duplicated (page {n})"
+    "duplicated": "Page duplicated (page {n})",
+    "home": "Home",
+    "tools": "Tools",
+    "annotations": "Annotations"
   },
   "common": {
     "ok": "OK",

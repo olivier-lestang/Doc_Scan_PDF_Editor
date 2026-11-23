@@ -9,6 +9,7 @@
     "tool_text": "A\u00f1adir texto",
     "tool_rect": "Rect\u00e1ngulo",
     "tool_highlight": "Resaltado",
+    "tool_active": "Herramienta: {tool} \u2014 haz clic o arrastra en la p\u00e1gina",
     "enhance": "Mejorar",
     "ocr": "OCR",
     "export": "Exportar PDF",
@@ -92,7 +93,10 @@
     "search": "Buscar",
     "properties": "Propiedades",
     "duplicate": "Duplicar p\u00e1gina",
-    "duplicated": "P\u00e1gina duplicada (p\u00e1gina {n})"
+    "duplicated": "P\u00e1gina duplicada (p\u00e1gina {n})",
+    "home": "Inicio",
+    "tools": "Herramientas",
+    "annotations": "Anotaciones"
   },
   "common": {
     "ok": "Aceptar",

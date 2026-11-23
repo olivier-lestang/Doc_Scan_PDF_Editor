@@ -1,13 +1,13 @@
 """Insert > Annotations ribbon group (text box, rectangle, highlight, stamp).
 
-Groupe Insertion > Annotations du ruban (zone de texte, cadre, surlignage,
+Groupe Accueil > Annotations du ruban (zone de texte, cadre, surlignage,
 tampon).
 """
 
 import flet as ft
 
 from lestang_pdf_editor.app.ui.ribbon._shared import RibbonContext, _ribbon_group
-from lestang_pdf_editor.app.ui.ribbon.insert.annotations import (
+from lestang_pdf_editor.app.ui.ribbon.home.annotations import (
     add_text,
     highlight_tool,
     rectangle,
@@ -21,7 +21,7 @@ def build_group(ctx: RibbonContext) -> ft.Control:
     Construit le groupe Annotations : un contrôle par module de bouton.
     """
     return _ribbon_group(
-        ctx.state.t("ribbon.insert"),
+        ctx.state.t("ribbon.annotations"),
         [
             add_text.control(ctx),
             rectangle.control(ctx),

@@ -7,7 +7,7 @@ souligné, couleurs).
 import flet as ft
 
 from lestang_pdf_editor.app.ui.ribbon._shared import RibbonContext, _ribbon_group
-from lestang_pdf_editor.app.ui.ribbon.insert.font import (
+from lestang_pdf_editor.app.ui.ribbon.home.font import (
     bold,
     family,
     highlight_color,

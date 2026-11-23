@@ -9,6 +9,7 @@
     "tool_text": "\u6dfb\u52a0\u6587\u5b57",
     "tool_rect": "\u77e9\u5f62\u6846",
     "tool_highlight": "\u9ad8\u4eae",
+    "tool_active": "\u5de5\u5177\uff1a{tool} \u2014 \u5728\u9875\u9762\u4e0a\u70b9\u51fb\u6216\u62d6\u52a8",
     "enhance": "\u4e00\u952e\u589e\u5f3a",
     "ocr": "OCR",
     "export": "\u5bfc\u51fa PDF",
@@ -92,7 +93,10 @@
     "search": "\u641c\u7d22",
     "properties": "\u5c5e\u6027",
     "duplicate": "\u590d\u5236\u9875\u9762",
-    "duplicated": "\u5df2\u590d\u5236\u9875\u9762\uff08\u7b2c {n} \u9875\uff09"
+    "duplicated": "\u5df2\u590d\u5236\u9875\u9762\uff08\u7b2c {n} \u9875\uff09",
+    "home": "\u4e3b\u9875",
+    "tools": "\u5de5\u5177",
+    "annotations": "\u6279\u6ce8"
   },
   "common": {
     "ok": "\u786e\u5b9a",

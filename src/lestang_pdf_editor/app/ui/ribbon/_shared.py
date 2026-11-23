@@ -24,7 +24,33 @@ class RibbonContext(NamedTuple):
     actions: dict[str, Callable[..., None]]
 
 
-FONT_FAMILIES = ["Helvetica", "Arial", "Times New Roman", "Courier New"]
+FONT_FAMILIES = [
+    # PDF base-14 first (always available, no embedding at export).
+    # Polices de base 14 d'abord (toujours disponibles, sans incorporation
+    # à l'export).
+    "Helvetica",
+    "Arial",
+    "Times New Roman",
+    "Courier New",
+    # Common system fonts, used for on-screen display; at PDF export they
+    # are mapped to the closest base-14 font (see PDF_FONT_NAMES), so the
+    # exported file stays portable and royalty-free.
+    # Polices système courantes, utilisées pour l'affichage à l'écran ;
+    # à l'export PDF elles sont ramenées à la base 14 la plus proche (voir
+    # PDF_FONT_NAMES) : le fichier exporté reste portable et sans redevance.
+    "Segoe UI",
+    "Verdana",
+    "Tahoma",
+    "Trebuchet MS",
+    "Lucida Sans Unicode",
+    "Georgia",
+    "Palatino Linotype",
+    "Book Antiqua",
+    "Garamond",
+    "Consolas",
+    "Lucida Console",
+    "Comic Sans MS",
+]
 """Font families offered in the ribbon (Home > Insert > Font).
 
 Polices proposées dans le ruban (Accueil > Insertion > Police).

@@ -17,6 +17,7 @@ import flet as ft
 from lestang_pdf_editor.app.state import AppState
 from lestang_pdf_editor.app.ui.common import page_scaffold, show_message, show_snackbar
 from lestang_pdf_editor.app.ui.ribbon import build_ribbon
+from lestang_pdf_editor.app.ui.tool_cursors import apply_tool_cursor, cursor_for_tool
 from lestang_pdf_editor.core.logging_setup import get_logger
 from lestang_pdf_editor.core.result import Err, Ok
 from lestang_pdf_editor.domain.entities.annotation import (
@@ -25,18 +26,6 @@ from lestang_pdf_editor.domain.entities.annotation import (
     RectangleAnnotation,
     TextAnnotation,
 )
-
-TOOL_CURSORS = {
-    "select": ft.MouseCursor.BASIC,
-    "text": ft.MouseCursor.VERTICAL_TEXT,
-    "rect": ft.MouseCursor.CLICK,
-    "highlight": ft.MouseCursor.CLICK,
-}
-"""Mouse cursor per tool (the text tool shows a text-insertion cursor).
-
-Curseur de souris par outil (l'outil texte affiche un curseur d'insertion
-de texte).
-"""
 
 ANNOTATION_ICONS = {
     "text": ft.Icons.TEXT_FIELDS,
@@ -215,8 +204,27 @@ def build_document_view(state: AppState) -> None:
 
     thumb_images: list[ft.Image] = []
 
+    last_tool = state.tool
+
     def refresh() -> None:
-        nonlocal gesture
+        nonlocal gesture, last_tool
+        if state.tool != last_tool:
+            # Rebuild the detector on tool change so the client gets a fresh
+            # MouseRegion with the new cursor; a plain attribute update is
+            # not reliable for the conditional MouseRegion wrapper.
+            # Reconstruit le détecteur au changement d'outil pour que le
+            # client reçoive un MouseRegion neuf avec le bon curseur ; la
+            # simple mise à jour d'attribut n'est pas fiable pour le wrapper
+            # conditionnel MouseRegion.
+            last_tool = state.tool
+            gesture = _make_gesture()
+            canvas_row.controls.clear()
+            canvas_row.controls.append(gesture)
+            logger.info(
+                "tool changed to %r, canvas cursor set to %r",
+                state.tool,
+                gesture.mouse_cursor,
+            )
         gesture = _refresh_all(
             state,
             thumbnails,
@@ -282,16 +290,28 @@ def build_document_view(state: AppState) -> None:
     def on_scroll(event: ft.ScrollEvent) -> None:
         _on_scroll(state, event, refresh)
 
-    gesture = ft.GestureDetector(
-        content=canvas_stack,
-        # on_tap receives the raw event; on_tap_down is wrapped in TapEvent
-        # with local_x/local_y (needed to place the text at the click point).
-        on_tap_down=lambda e: _on_tap(state, e, canvas_stack, refresh),
-        on_pan_start=lambda e: _on_pan_start(state, e),
-        on_pan_update=lambda e: _on_pan_update(state, e, canvas_stack, refresh),
-        on_pan_end=lambda e: _on_pan_end(state, e, canvas_stack, refresh),
-        on_scroll=on_scroll,
-    )
+    def _make_gesture() -> ft.GestureDetector:
+        """Create the canvas gesture detector with the active tool's cursor.
+
+        Crée le détecteur de gestes du canevas avec le curseur de l'outil
+        actif, posé dès la construction : le client Flutter n'ajoute le
+        wrapper MouseRegion que si mouseCursor est non nul au premier build.
+        """
+        return ft.GestureDetector(
+            content=canvas_stack,
+            mouse_cursor=cursor_for_tool(state.tool),
+            # on_tap receives the raw event; on_tap_down is wrapped in TapEvent
+            # with local_x/local_y (needed to place the text at the click point).
+            on_tap_down=lambda e: _on_tap(state, e, canvas_stack, refresh),
+            on_secondary_tap=lambda e: _on_secondary_tap(state, refresh),
+            on_pan_start=lambda e: _on_pan_start(state, e),
+            on_pan_update=lambda e: _on_pan_update(state, e, canvas_stack, refresh),
+            on_pan_end=lambda e: _on_pan_end(state, e, canvas_stack, refresh),
+            on_scroll=on_scroll,
+        )
+
+    gesture = _make_gesture()
+    canvas_row = ft.Row(controls=[gesture], scroll=ft.ScrollMode.ALWAYS)
 
     page.on_keyboard_event = lambda e: _on_keyboard(state, e, refresh, actions)
 
@@ -304,7 +324,7 @@ def build_document_view(state: AppState) -> None:
         alignment=ft.alignment.center,
         content=ft.Column(
             controls=[
-                ft.Row(controls=[gesture], scroll=ft.ScrollMode.ALWAYS),
+                canvas_row,
             ],
             scroll=ft.ScrollMode.ALWAYS,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -319,10 +339,54 @@ def build_document_view(state: AppState) -> None:
         ],
         expand=True,
     )
+    page_jump = ft.TextField(
+        width=64,
+        dense=True,
+        text_align=ft.TextAlign.CENTER,
+        label=state.t("ribbon.page"),
+        on_submit=lambda e: _jump_to_page(state, e, refresh),
+    )
+    # Zoom controls live at the bottom-right of the window (the former
+    # "View" ribbon group), next to the zoom percentage.
+    # Les contrôles de zoom sont en bas à droite de la fenêtre (l'ancien
+    # groupe « Affichage » du ruban), à côté du pourcentage de zoom.
+    zoom_controls = ft.Row(
+        controls=[
+            ft.IconButton(
+                icon=ft.Icons.ZOOM_OUT,
+                tooltip=state.t("ribbon.zoom_out"),
+                on_click=lambda _e: actions["zoom_out"](),
+            ),
+            zoom_label,
+            ft.IconButton(
+                icon=ft.Icons.ZOOM_IN,
+                tooltip=state.t("ribbon.zoom_in"),
+                on_click=lambda _e: actions["zoom_in"](),
+            ),
+            ft.IconButton(
+                icon=ft.Icons.ZOOM_OUT_MAP,
+                tooltip=state.t("ribbon.fit_width"),
+                on_click=lambda _e: actions["fit_width"](),
+            ),
+            ft.IconButton(
+                icon=ft.Icons.FIT_SCREEN,
+                tooltip=state.t("ribbon.fit_page"),
+                on_click=lambda _e: actions["fit_page"](),
+            ),
+            ft.IconButton(
+                icon=ft.Icons.OPEN_IN_FULL,
+                tooltip=state.t("ribbon.zoom_reset"),
+                on_click=lambda _e: actions["zoom_reset"](),
+            ),
+        ],
+        spacing=2,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+    )
     bottom_bar = ft.Container(
         content=ft.Row(
-            controls=[status, progress_bar, zoom_label],
+            controls=[status, progress_bar, page_jump, zoom_controls],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
         padding=8,
         bgcolor="#FFFFFF",
@@ -360,36 +424,65 @@ def _refresh_all(
     _fill_thumbnails / _render_canvas, pour ne jamais bloquer l'UI même
     sur un gros PDF.
     """
-    thumbnails.controls.clear()
-    thumb_images.clear()
     total = state.page_count()
-    for index in range(total):
-        image = ft.Image(width=120, height=160, fit=ft.ImageFit.COVER)
-        thumb_images.append(image)
-        thumbnails.controls.append(
-            ft.GestureDetector(
-                content=ft.Stack(
-                    controls=[
-                        ft.Container(
-                            image,
-                            width=120,
-                            height=160,
-                            bgcolor="#ECEFF1",
-                            border_radius=4,
-                        ),
-                        ft.Container(
-                            ft.Text(str(index + 1), size=12, color="#607D8B"),
-                            alignment=ft.alignment.center,
-                        ),
-                    ]
-                ),
-                on_tap=lambda _e, i=index: _select_page(state, i),
+    # Rebuild the thumbnail strip only when the page count changes: recreating
+    # the Image controls on every refresh drops their "src", which makes the
+    # client flash the red "Image must have either src or src_base64" error
+    # until the async re-render fills them again.
+    # Ne reconstruit la bande de vignettes que si le nombre de pages change :
+    # recréer les contrôles Image à chaque rafraîchissement perd leur « src »,
+    # ce qui fait clignoter l'erreur rouge « Image must have either src or
+    # src_base64 » jusqu'à ce que le re-rendu asynchrone les remplisse.
+    if len(thumb_images) != total or not thumbnails.controls:
+        thumbnails.controls.clear()
+        thumb_images.clear()
+        for index in range(total):
+            image = ft.Image(
+                width=120,
+                height=160,
+                # CONTAIN, not COVER: the whole page must stay visible in the
+                # fixed 120x160 thumbnail box whatever its format (A4, Letter,
+                # A3 landscape, ...); COVER would crop non-A4 pages.
+                # CONTAIN et non COVER : la page entière doit rester visible
+                # dans la vignette fixe 120x160 quel que soit son format (A4,
+                # Letter, A3 paysage...) ; COVER rognerait les pages non A4.
+                fit=ft.ImageFit.CONTAIN,
+                # Show the page number instead of the red error box while the
+                # thumbnail is not rendered yet (or if rendering failed).
+                # Affiche le numéro de page au lieu de l'erreur rouge tant que
+                # la vignette n'est pas rendue (ou si le rendu a échoué).
+                error_content=ft.Text(str(index + 1), size=12, color="#607D8B"),
             )
-        )
+            thumb_images.append(image)
+            thumbnails.controls.append(
+                ft.GestureDetector(
+                    content=ft.Stack(
+                        controls=[
+                            ft.Container(
+                                image,
+                                width=120,
+                                height=160,
+                                bgcolor="#ECEFF1",
+                                border_radius=4,
+                            ),
+                            ft.Container(
+                                ft.Text(str(index + 1), size=12, color="#607D8B"),
+                                alignment=ft.alignment.center,
+                            ),
+                        ]
+                    ),
+                    on_tap=lambda _e, i=index: _select_page(state, i),
+                )
+            )
     annots_list.controls.clear()
     for position, annotation in enumerate(state.annotations()):
         annots_list.controls.append(_annotation_row(state, position, annotation))
     canvas_stack.controls.clear()
+    editing = state._editing
+    if editing is not None:
+        # Keep the open text editor on top across rebuilds.
+        # Conserve l'éditeur de texte ouvert au-dessus lors des reconstructions.
+        canvas_stack.controls.append(editing["container"])
     if state.document is not None and gesture is not None:
         index = state.selected_page
         ocr_text.value = state.page_ocr.get(index, "")
@@ -400,8 +493,12 @@ def _refresh_all(
             f" — {len(state.annotations())} annotations"
             + (f" — lang: {lang}" if lang else "")
         )
+        if state.tool != "select":
+            status.value += " — " + state.t("doc.tool_active").replace(
+                "{tool}", state.t(f"doc.tool_{state.tool}")
+            )
         zoom_label.value = f"{int(state.zoom * 100)}%"
-        gesture.mouse_cursor = TOOL_CURSORS[state.tool]
+        apply_tool_cursor(gesture, state.tool)
     return gesture
 
 
@@ -419,11 +516,20 @@ async def _fill_thumbnails(
     for index in range(min(total, len(thumb_images))):
         if generation != state._render_generation:
             return
-        result = await loop.run_in_executor(None, state.page_png_path, index, 72)
+        # Thumbnails bake the annotations in, so they reflect page edits.
+        # Les vignettes incrustent les annotations : elles reflètent les
+        # modifications de la page.
+        result = await loop.run_in_executor(
+            None, partial(state.page_png_path, index, 72, annotated=True)
+        )
         if generation != state._render_generation:
             return
         if isinstance(result, Ok):
             thumb_images[index].src = str(result.value)
+        else:
+            logger.warning(
+                "thumbnail render failed for page %d: %s", index, result.error
+            )
         if index % 4 == 3:
             page.update()
     page.update()
@@ -470,6 +576,13 @@ async def _render_canvas(
                 state, canvas_width, canvas_height, canvas_stack, refresh
             )
         )
+    editing = state._editing
+    if editing is not None and editing["container"] not in canvas_stack.controls:
+        # Re-append the open text editor after the canvas rebuild, otherwise
+        # the async render would erase the box opened at pan end.
+        # Rajoute l'éditeur de texte ouvert après la reconstruction du canevas,
+        # sinon le rendu asynchrone effacerait la zone ouverte au relâchement.
+        canvas_stack.controls.append(editing["container"])
     page.update()
 
 
@@ -509,6 +622,26 @@ def _select_page(state: AppState, index: int) -> None:
     """
     state.selected_page = index
     state._notify()
+
+
+def _jump_to_page(
+    state: AppState, event: ft.ControlEvent, refresh: Callable[[], None]
+) -> None:
+    """Go to the page number typed in the bottom-bar jump field (Enter).
+
+    Va à la page tapée dans le champ de saut en bas (Entrée), bornée entre
+    1 et le nombre de pages.
+    """
+    field = event.control
+    try:
+        target = int(str(getattr(field, "value", "") or "").strip())
+    except ValueError:
+        return
+    total = state.page_count()
+    if total <= 0:
+        return
+    _select_page(state, min(max(target, 1), total) - 1)
+    refresh()
 
 
 def _annotation_overlays(
@@ -565,21 +698,50 @@ def _annotation_overlays(
                     state, e, pos, canvas_stack, refresh
                 ),
             )
-            overlays.append(
-                ft.Container(
-                    content=gesture,
-                    left=x * width,
-                    top=y * height,
-                    width=max(40.0, w * width),
-                    height=max(24.0, h * height),
-                    border=(
-                        ft.border.all(1.5, "#1976D2")
-                        if selected
-                        else ft.border.all(1, "#90CAF9")
-                    ),
-                    tooltip=tooltip or None,
-                )
+            overlay = ft.Container(
+                content=ft.Stack(controls=[gesture]),
+                left=x * width,
+                top=y * height,
+                width=max(40.0, w * width),
+                height=max(24.0, h * height),
+                # Text starts at the top-left of the box (Word-like).
+                # Le texte commence en haut à gauche de la zone.
+                alignment=ft.alignment.top_left,
+                border=(
+                    ft.border.all(1.5, "#1976D2")
+                    if selected
+                    else ft.border.all(1, "#90CAF9")
+                ),
+                tooltip=tooltip or None,
             )
+            if selected:
+                # 8 resize handles on a selected text box: 4 corners + 4 edge
+                # midpoints; hold one to resize (Word-like).
+                # 8 poignées de redimensionnement sur une zone sélectionnée :
+                # 4 coins + 4 milieux de bordure ; maintenir pour agrandir.
+                handles: dict[str, ft.Container] = {}
+                stack = overlay.content
+                if isinstance(stack, ft.Stack):
+                    for handle_name in _RESIZE_HANDLES:
+                        handle = ft.Container(
+                            width=10, height=10, bgcolor="#1976D2", border_radius=5
+                        )
+                        handles[handle_name] = handle
+                        stack.controls.append(
+                            _make_handle_detector(
+                                state,
+                                position,
+                                handle_name,
+                                overlay,
+                                handles,
+                                canvas_stack,
+                                refresh,
+                            )
+                        )
+                    _place_handles(
+                        handles, float(overlay.width or 0), float(overlay.height or 0)
+                    )
+            overlays.append(overlay)
         elif isinstance(annotation, RectangleAnnotation):
             overlays.append(
                 ft.Container(
@@ -662,31 +824,25 @@ def _open_text_editor(
         autofocus=True,
         multiline=True,
         expand=True,
-        label=state.t("doc.text_content"),
+        # Type directly inside the rectangle: no label, no underline, text
+        # starts at the top-left of the box (Word-like). Validate with
+        # Ctrl+Enter or by clicking outside; Escape cancels.
+        # Saisie directe dans le rectangle : sans libellé ni bordure, le
+        # texte commence en haut à gauche. Validation par Ctrl+Entrée ou
+        # clic à l'extérieur ; Échap annule.
+        border=ft.InputBorder.NONE,
+        text_align=ft.TextAlign.LEFT,
     )
 
-    def commit() -> None:
-        _commit_editing(state, refresh)
-
     editor = ft.Container(
-        content=ft.Row(
-            controls=[
-                ft.Container(field, expand=True),
-                ft.IconButton(
-                    icon=ft.Icons.CHECK,
-                    tooltip=state.t("doc.validate"),
-                    on_click=lambda _e: commit(),
-                ),
-            ],
-            spacing=2,
-        ),
+        content=field,
         left=rect[0] * width,
         top=rect[1] * height,
         width=max(120.0, rect[2] * width),
         height=max(44.0, rect[3] * height),
         bgcolor="#FFFFFF",
         border=ft.border.all(1.5, "#1976D2"),
-        padding=2,
+        padding=4,
     )
     state._editing = {
         "field": field,
@@ -858,6 +1014,163 @@ def _move_end(
     refresh()
 
 
+def _make_handle_detector(
+    state: AppState,
+    position: int,
+    handle_name: str,
+    overlay: ft.Container,
+    handles: dict[str, ft.Container],
+    canvas_stack: ft.Stack,
+    refresh: Callable[[], None],
+) -> ft.GestureDetector:
+    """Build the gesture detector of one resize handle (8 per selected box).
+
+    Construit le détecteur de gestes d'une poignée de redimensionnement
+    (8 par zone sélectionnée).
+    """
+    return ft.GestureDetector(
+        content=handles[handle_name],
+        on_pan_start=lambda e: _resize_start(
+            state, e, position, handle_name, overlay, handles, canvas_stack
+        ),
+        on_pan_update=lambda e: _resize_update(state, e, position, handle_name),
+        on_pan_end=lambda e: _resize_end(state, e, position, handle_name, refresh),
+    )
+
+
+_RESIZE_HANDLES = ("nw", "n", "ne", "e", "se", "s", "sw", "w")
+"""The 8 resize handle names (corners + edge midpoints).
+
+Les 8 noms des poignées (coins + milieux de bordure).
+"""
+
+
+def _place_handles(
+    handles: dict[str, ft.Container], width: float, height: float
+) -> None:
+    """Position the 8 resize handles around a box of the given pixel size.
+
+    Positionne les 8 poignées autour d'une zone de la taille en pixels donnée.
+    """
+    spots = {
+        "nw": (0.0, 0.0),
+        "n": (width / 2, 0.0),
+        "ne": (width, 0.0),
+        "e": (width, height / 2),
+        "se": (width, height),
+        "s": (width / 2, height),
+        "sw": (0.0, height),
+        "w": (0.0, height / 2),
+    }
+    for name, (hx, hy) in spots.items():
+        handle = handles[name]
+        handle.left = hx - 5.0
+        handle.top = hy - 5.0
+
+
+def _resize_start(
+    state: AppState,
+    event: ft.DragStartEvent,
+    position: int,
+    handle: str,
+    overlay: ft.Container,
+    handles: dict[str, ft.Container],
+    canvas_stack: ft.Stack,
+) -> None:
+    """Start resizing a selected text box from one of its 8 handles.
+
+    Démarre le redimensionnement d'une zone sélectionnée depuis une poignée.
+    """
+    annotations = state.annotations()
+    if not 0 <= position < len(annotations):
+        return
+    state._resize = {
+        "position": position,
+        "handle": handle,
+        "start": _local_point(event),
+        "orig_rect": annotations[position].rect,
+        "overlay": overlay,
+        "handles": handles,
+        "canvas_stack": canvas_stack,
+        "rect": annotations[position].rect,
+    }
+    state._drag_start = None
+
+
+def _resize_update(
+    state: AppState, event: ft.DragUpdateEvent, position: int, handle: str
+) -> None:
+    """Live-resize the selected text box while dragging a handle.
+
+    Redimensionne en direct la zone pendant le glisser sur une poignée
+    (mises à jour ciblées des contrôles, pour rester fluide).
+    """
+    rz = state._resize
+    if rz is None or rz["position"] != position or rz["handle"] != handle:
+        return
+    width, height = _canvas_dims(state, rz["canvas_stack"])
+    start_x, start_y = rz["start"]
+    cur_x, cur_y = _local_point(event)
+    dx = (cur_x - start_x) / width
+    dy = (cur_y - start_y) / height
+    ox, oy, ow, oh = rz["orig_rect"]
+    x, y, w, h = ox, oy, ow, oh
+    if "e" in handle:
+        w = ow + dx
+    if "w" in handle:
+        x = ox + dx
+        w = ow - dx
+    if "s" in handle:
+        h = oh + dy
+    if "n" in handle:
+        y = oy + dy
+        h = oh - dy
+    if w < 0.02:
+        w = 0.02
+        if "w" in handle:
+            x = ox + ow - w
+    if h < 0.02:
+        h = 0.02
+        if "n" in handle:
+            y = oy + oh - h
+    rz["rect"] = (x, y, w, h)
+    overlay = rz["overlay"]
+    overlay.left = x * width
+    overlay.top = y * height
+    overlay.width = max(40.0, w * width)
+    overlay.height = max(24.0, h * height)
+    _place_handles(rz["handles"], float(overlay.width), float(overlay.height))
+    overlay.update()
+    for handle_ctl in rz["handles"].values():
+        handle_ctl.update()
+
+
+def _resize_end(
+    state: AppState,
+    event: ft.DragEndEvent,
+    position: int,
+    handle: str,
+    refresh: Callable[[], None],
+) -> None:
+    """Persist the resized rect of the text box (drag end on a handle).
+
+    Persiste le rectangle redimensionné de la zone (relâchement sur une
+    poignée).
+    """
+    from dataclasses import replace as dc_replace
+
+    rz = state._resize
+    state._resize = None
+    if rz is None or rz["position"] != position or rz["handle"] != handle:
+        return
+    rect = rz.get("rect")
+    annotations = state.annotations()
+    if rect is not None and 0 <= position < len(annotations):
+        state.replace_annotation(position, dc_replace(annotations[position], rect=rect))
+    state._selected_annot = None
+    refresh()
+
+
 def _on_tap(
     state: AppState,
     event: ft.TapEvent,
@@ -874,6 +1187,8 @@ def _on_tap(
     taille par défaut au point cliqué.
     """
     if state.document is None:
+        return
+    if state._resize is not None or state._move is not None:
         return
     if state._editing is not None:
         _commit_editing(state, refresh)
@@ -896,12 +1211,22 @@ def _on_tap(
     _open_text_editor(state, canvas_stack, refresh, rect)
 
 
+def _on_secondary_tap(state: AppState, refresh: Callable[[], None]) -> None:
+    """Right-click (or any non-left click) outside the box: validate it.
+
+    Clic droit (ou tout clic non gauche) hors de la zone : valide la zone de
+    texte ouverte, comme un clic ordinaire à l'extérieur.
+    """
+    if state._editing is not None:
+        _commit_editing(state, refresh)
+
+
 def _on_pan_start(state: AppState, event: ft.DragStartEvent) -> None:
     """Remember the drag start point for drawing/moving tools.
 
     Mémorise le point de début de glisser pour les outils de dessin.
     """
-    if state._move is not None:
+    if state._move is not None or state._resize is not None:
         return
     state._drag_start = _local_point(event)
     state._drag_last = state._drag_start
@@ -921,7 +1246,7 @@ def _on_pan_update(
     state._drag_last = _local_point(event)
     if state.tool not in ("rect", "highlight", "text") or state._drag_start is None:
         return
-    if state._move is not None:
+    if state._move is not None or state._resize is not None:
         return
     start = state._drag_start
     end = state._drag_last
@@ -933,7 +1258,8 @@ def _on_pan_update(
         return
     color = "#1976D2" if state.tool != "highlight" else "#FFEB3B"
     preview = state._drag_preview
-    if preview is None:
+    just_created = preview is None
+    if just_created:
         preview = ft.Container(border=ft.border.all(1.5, color))
         state._drag_preview = preview
         canvas_stack.controls.append(preview)
@@ -945,7 +1271,19 @@ def _on_pan_update(
         ft.Colors.with_opacity(0.25, color) if state.tool == "highlight" else None
     )
     if state.page is not None:
-        state.page.update()
+        # Control-level update once the preview exists: only its props go over
+        # the wire, which keeps the drag fluid (a full page.update() per pan
+        # event lags behind the mouse). The first time, the new control must
+        # be registered with a full page update.
+        # Mise à jour au niveau du contrôle une fois l'aperçu créé : seules ses
+        # propriétés partent sur le fil, ce qui rend le tracé fluide (un
+        # page.update() complet à chaque glisser est en retard sur la souris).
+        # La première fois, le nouveau contrôle doit être enregistré via un
+        # page.update() complet.
+        if just_created:
+            state.page.update()
+        else:
+            preview.update()
 
 
 def _on_pan_end(
@@ -961,7 +1299,7 @@ def _on_pan_end(
     Crée l'annotation à partir du glisser : forme (cadre/surlignage) ou une
     zone de texte de la taille dessinée (outil texte).
     """
-    if state._move is not None:
+    if state._move is not None or state._resize is not None:
         return
     preview = state._drag_preview
     if preview is not None:
@@ -1012,12 +1350,20 @@ def _on_keyboard(
     state.ctrl_pressed = bool(event.ctrl or event.meta)
     focused = getattr(event, "control", None)
     key = (event.key or "").lower()
-    if isinstance(focused, ft.TextField):
-        # While editing a text box: Ctrl+Enter validates (Enter = newline).
-        # Pendant l'édition d'une zone : Ctrl+Entrée valide (Entrée = saut de
-        # ligne).
-        if state._editing is not None and state.ctrl_pressed and key == "enter":
+    if state._editing is not None:
+        # While the inline text editor is open, the keyboard belongs to it:
+        # only Ctrl+Enter (validate) and Escape (cancel) are handled here, so
+        # Space/letters keep their normal meaning (no page change on Space).
+        # Tant que l'éditeur en ligne est ouvert, le clavier lui appartient :
+        # seuls Ctrl+Entrée (valider) et Échap (annuler) sont traités ici ;
+        # Espace et les lettres gardent leur sens normal (plus de changement
+        # de page avec Espace).
+        if state.ctrl_pressed and key == "enter":
             _commit_editing(state, refresh)
+        elif key == "escape":
+            _cancel_editing(state, refresh)
+        return
+    if isinstance(focused, ft.TextField):
         return
     if key == "escape":
         if state._editing is not None:

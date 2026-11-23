@@ -9,6 +9,7 @@
     "tool_text": "Ajouter du texte",
     "tool_rect": "Cadre",
     "tool_highlight": "Surlignage",
+    "tool_active": "Outil : {tool} \u2014 cliquez ou glissez sur la page",
     "enhance": "Am\u00e9liorer",
     "ocr": "OCR",
     "export": "Exporter en PDF",
@@ -92,7 +93,10 @@
     "search": "Rechercher",
     "properties": "Propri\u00e9t\u00e9s",
     "duplicate": "Dupliquer la page",
-    "duplicated": "Page dupliqu\u00e9e (page {n})"
+    "duplicated": "Page dupliqu\u00e9e (page {n})",
+    "home": "Accueil",
+    "tools": "Outils",
+    "annotations": "Annotations"
   },
   "common": {
     "ok": "OK",

@@ -1,17 +1,18 @@
-"""Home category of the ribbon (currently the File group).
+"""Home tab of the ribbon: everything about text editing (annotations + font).
 
-Catégorie Accueil du ruban (actuellement le groupe Fichier).
+Onglet Accueil du ruban : tout ce qui concerne l'édition de texte
+(annotations + police).
 """
 
 import flet as ft
 
 from lestang_pdf_editor.app.ui.ribbon._shared import RibbonContext
-from lestang_pdf_editor.app.ui.ribbon.home import file
+from lestang_pdf_editor.app.ui.ribbon.home import annotations, font
 
 
 def build_groups(ctx: RibbonContext) -> list[ft.Control]:
-    """Return the ribbon groups of the Home category.
+    """Return the ribbon groups of the Home tab.
 
-    Retourne les groupes du ruban de la catégorie Accueil.
+    Retourne les groupes du ruban de l'onglet Accueil.
     """
-    return [file.build_group(ctx)]
+    return [annotations.build_group(ctx), font.build_group(ctx)]

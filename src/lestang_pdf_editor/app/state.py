@@ -142,6 +142,72 @@ exporter (jamais le contenu des documents).
 """
 
 
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    """Parse a '#RRGGBB' color into an (r, g, b) tuple.
+
+    Convertit une couleur « #RRGGBB » en tuple (r, g, b).
+    """
+    return tuple(int(color[i : i + 2], 16) for i in (1, 3, 5))  # type: ignore[return-value]
+
+
+def _draw_annotations(
+    image: Any, annotations: tuple[Annotation, ...], dpi: int
+) -> None:
+    """Draw annotations onto a PIL page image (used for thumbnails only).
+
+    Dessine les annotations sur l'image PIL d'une page (vignettes seulement ;
+    le canevas les affiche en superpositions interactives). Les rectangles
+    d'annotation sont normalisés, origine en haut à gauche, comme à l'écran.
+    """
+    from PIL import Image, ImageDraw, ImageFont
+
+    from lestang_pdf_editor.domain.entities.annotation import (
+        HighlightAnnotation,
+        RectangleAnnotation,
+        TextAnnotation,
+    )
+
+    scale = dpi / 72.0
+    width, height = image.size
+    overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    for annotation in annotations:
+        x, y, w, h = annotation.rect
+        px, py = x * width, y * height
+        pw, ph = max(1.0, w * width), max(1.0, h * height)
+        if isinstance(annotation, HighlightAnnotation):
+            draw.rectangle(
+                [px, py, px + pw, py + ph], fill=(*_hex_to_rgb(annotation.color), 90)
+            )
+        elif isinstance(annotation, RectangleAnnotation):
+            draw.rectangle(
+                [px, py, px + pw, py + ph],
+                outline=(*_hex_to_rgb(annotation.stroke_color), 255),
+                width=max(1, int(annotation.stroke_width_pt * scale)),
+            )
+        elif isinstance(annotation, TextAnnotation):
+            if annotation.highlight_color:
+                draw.rectangle(
+                    [px, py, px + pw, py + ph],
+                    fill=(*_hex_to_rgb(annotation.highlight_color), 110),
+                )
+            try:
+                font = ImageFont.load_default(
+                    size=max(6, int(annotation.font_size_pt * scale))
+                )
+            except TypeError:
+                font = ImageFont.load_default()
+            draw.multiline_text(
+                (px + 2, py + 2),
+                annotation.content,
+                fill=(*_hex_to_rgb(annotation.color), 255),
+                font=font,
+            )
+    image.paste(
+        Image.alpha_composite(image.convert("RGBA"), overlay).convert("RGB"), (0, 0)
+    )
+
+
 class AppState:
     """Holds engines, settings and the currently open document.
 
@@ -198,6 +264,7 @@ class AppState:
         self._selected_annot: int | None = None  # selected annotation position
         self._drag_preview: Any = None  # live shape preview while dragging
         self._move: dict[str, Any] | None = None  # annotation move drag state
+        self._resize: dict[str, Any] | None = None  # annotation resize drag state
         self.pending_export: dict[str, object] = {}
         self._listeners: list[Callable[[], None]] = []
 
@@ -644,20 +711,26 @@ class AppState:
             self.document.document_id, global_index.value, dpi
         )
 
-    def page_png_path(self, index: int, dpi: int) -> Result[Path, str]:
+    def page_png_path(
+        self, index: int, dpi: int, *, annotated: bool = False
+    ) -> Result[Path, str]:
         """Return the cached PNG of a page, rendering it once if needed.
 
         Retourne le PNG en cache d'une page, en le rendant une seule fois
         si nécessaire. La clé de cache inclut la révision de la session :
         toute modification de page invalide les anciens fichiers.
+        `annotated=True` incruste les annotations dans l'image (vignettes) ;
+        le canevas utilise la variante sans annotations (les annotations y sont
+        des superpositions interactives).
         """
         if self.document is None:
             return Err("no document open")
         doc_id = self.document.document_id
         revision = self.pdf_engine.revision(doc_id)
         prefix = f"page_{doc_id[:8]}_r{revision}_"
+        suffix = "a" if annotated else ""
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        out = self.cache_dir / f"{prefix}{index}_{dpi}.png"
+        out = self.cache_dir / f"{prefix}{index}_{dpi}{suffix}.png"
         if out.exists():
             logger.debug("render cache hit: page %d @%d dpi", index, dpi)
             self._sweep_cache(doc_id[:8], revision=revision)
@@ -676,6 +749,8 @@ class AppState:
 
         buffer = result.value
         image = Image.frombytes("RGB", (buffer.width, buffer.height), buffer.data)
+        if annotated:
+            _draw_annotations(image, self.annotations_for_page(index), dpi)
         image.save(out)
         self._sweep_cache(doc_id[:8], revision=revision)
         return Ok(out)

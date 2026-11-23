@@ -7,6 +7,137 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is also embedded in the app and shown on the "Release notes"
 ("Nouveautés") page.
 
+## [0.4.2] - 2026-11-23
+
+### Fixed
+
+- Thumbnails used `ImageFit.COVER` in a fixed 120x160 box, which cropped
+  non-A4 pages; they now use `ImageFit.CONTAIN` so the whole page is always
+  visible (letterboxed) regardless of page format.
+
+## [0.4.1] - 2026-11-23
+
+### Docs
+
+- ADR 0003 (`docs/adr/0003-gui-framework-flet-desktop-v1.md`): decision to
+  keep Flet 0.28.3 for the desktop V1, alternatives comparison
+  (PySide6/Qt, Tkinter, Tauri/Electron), known Flet quirks and workarounds,
+  and the re-evaluation criteria (native widgets / stylus / LGPL review).
+
+## [0.4.0] - 2026-11-23
+
+### Added
+
+- Selected text box shows **8 resize handles** (4 corners + 4 edge
+  midpoints); hold any handle to resize, with live control-level updates.
+  Move = hold-click drag, re-edit = double-click (already in place, now
+  covered by the handles too).
+- Thumbnails now bake the annotations in (`page_png_path(..., annotated=True)`
+  + PIL drawing) and annotation add/replace/remove bump the session
+  revision, so a modified page is reflected in its thumbnail.
+- Ribbon reworked into **clickable tabs: File / Home / Insert / Tools**
+  (`TABS` in `ribbon/__init__.py`); Home holds all text-editing tools
+  (annotations + font). Zoom controls moved out of the ribbon to the
+  **bottom-right of the window** (bottom bar, next to the zoom %).
+- Page-jump field in the bottom bar (type a page number + Enter).
+- Default desktop window size set to **1500x920** (resizable).
+
+## [0.3.4] - 2026-11-23
+
+### Changed
+
+- Tool cursors moved to a shared, reusable module:
+  `src/lestang_pdf_editor/app/ui/tool_cursors.py` (`TOOL_CURSORS`,
+  `cursor_for_tool()`, `apply_tool_cursor()`) — any view can map a tool to a
+  cursor and set it on a GestureDetector. New tools just add an entry there.
+- Drag preview (rectangle/highlight/text box) now updates at control level
+  (`preview.update()`), so drawing follows the mouse smoothly instead of
+  lagging behind (full `page.update()` per pan event).
+
+### Fixed
+
+- Space no longer changes page while typing in a text box: the keyboard is
+  owned by the inline editor while it is open (guard on `state._editing`,
+  since `KeyboardEvent.control` is not reliably the focused TextField on
+  desktop); only Ctrl+Enter (validate) and Escape (cancel) are handled then.
+
+## [0.3.3] - 2026-11-23
+
+### Fixed
+
+- Text tool cursor is now `MouseCursor.TEXT` (upright I-beam ⌶) instead of
+  `VERTICAL_TEXT`, which the web renderer maps to the CSS `vertical-text`
+  cursor (I-beam rotated 90°).
+
+## [0.3.2] - 2026-11-23
+
+### Fixed
+
+- Thumbnails no longer flash the red « Image must have either "src" or
+  "src_base64" » error on every click: the thumbnail strip is rebuilt only
+  when the page count changes (existing images keep their `src`), and a
+  missing/failed thumbnail now shows the page number (`error_content`)
+  instead of the error box. Thumbnail render failures are logged.
+- Verified on the wire (WebSocket probe): clicking a tool button sends a
+  fresh canvas GestureDetector with `mouseCursor: verticalText`, so the
+  I-beam cursor depends only on the client binary applying it.
+
+## [0.3.1] - 2026-11-23
+
+### Fixed
+
+- A right-click (any non-left click) outside an open text box now validates
+  it, like a normal click outside (`on_secondary_tap`).
+- Tool change is logged with the cursor value sent to the client, so a
+  missing I-beam cursor can be diagnosed from the log file
+  (`%LOCALAPPDATA%\\LestangPdfEditor\\Logs\\app.log` on Windows).
+
+### Note
+
+- No TTF/OTF font embedding (explicit decision): PDF export keeps mapping
+  every font family to the PDF base-14, which needs no font file and no
+  license.
+
+## [0.3.0] - 2026-11-23
+
+Version is now bumped automatically on every change (SemVer: MINOR for
+features, PATCH for fixes) and shown in the bottom-right status bar.
+
+### Changed
+
+- Text tool: you now type **directly inside the rectangle** (text starts at
+  the top-left of the box); the framed "comment" editor with the ✓ button
+  is removed. Validate with Ctrl+Enter or by clicking outside, Escape
+  cancels, Enter = newline.
+- Font family dropdown extended (base-14 + common system fonts: Segoe UI,
+  Verdana, Georgia, Consolas, ...). At PDF export every family is mapped
+  to the closest base-14 font, so no font file is embedded and the export
+  stays portable and license-clean. Bundling/embedding OFL fonts (Liberation,
+  DejaVu, Noto) for pixel-exact export is a possible next step.
+
+### Fixed
+
+- Drag-drawn text boxes no longer vanish on mouse release.
+
+## [0.2.0] - 2026-11-23
+
+### Added
+
+- App version shown in a bottom status bar, right-aligned on every view;
+  version single-sourced in `lestang_pdf_editor.__version__` (dynamic via
+  `[tool.hatch.version]`).
+- Active drawing tool shown in the bottom status bar with a click/drag
+  hint (i18n en/fr/es/zh).
+
+### Fixed
+
+- Mouse cursor for the text/rectangle/highlight tools: the canvas
+  GestureDetector now sets `mouse_cursor` at construction (the Flutter
+  client only adds the MouseRegion wrapper when `mouseCursor` is non-null
+  at first build), so the I-beam/click cursor now actually appears.
+- Word-like text boxes, progress bars + rotating log file, per-button
+  ribbon package (`ribbon/<tab>/<group>/<button>.py`).
+
 ## [Unreleased]
 
 ### Changed
@@ -78,3 +209,12 @@ This file is also embedded in the app and shown on the "Release notes"
 - Shortcuts: Ctrl+O open, Ctrl+E export, Ctrl+Z undo, Ctrl+0 reset zoom,
   Ctrl +/-, Ctrl+wheel zoom; snackbar feedback.
 - Undo stack for annotations (Ctrl+Z / ribbon).
+- App version shown in a bottom status bar, right-aligned on every view
+  (home, document, settings); version is single-sourced in
+  `lestang_pdf_editor.__version__` and read dynamically by hatchling
+  (`[tool.hatch.version]`), so `pyproject.toml` no longer duplicates it.
+- Text/drawing tools now set the mouse cursor at GestureDetector
+  construction time (the Flutter client only adds the MouseRegion wrapper
+  when `mouseCursor` is non-null at first build) and the bottom status bar
+  shows the active tool with a hint (click or drag on the page), in all 4
+  UI languages.

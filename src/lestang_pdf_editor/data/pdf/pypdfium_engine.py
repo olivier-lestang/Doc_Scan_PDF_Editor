@@ -51,12 +51,48 @@ IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 Extensions de fichiers ouverts comme documents image d'une page.
 """
 
+_HELVETICA = ("/Helv", "/HeBo", "/HeOb", "/HeBO")
+"""Base-14 sans-serif slot (Helvetica / Arial metric-compatible).
+
+Emplacement sans-serif de la base 14 (Helvetica, compatible Arial).
+"""
+
+_TIMES = ("/TiRo", "/TiBo", "/TiIt", "/TiBI")
+"""Base-14 serif slot (Times New Roman metric-compatible).
+
+Emplacement serif de la base 14 (compatible Times New Roman).
+"""
+
+_COURIER = ("/Cour", "/CoBo", "/CoOb", "/CoBO")
+"""Base-14 monospace slot (Courier New metric-compatible).
+
+Emplacement monospace de la base 14 (compatible Courier New).
+"""
+
 PDF_FONT_NAMES: dict[str, tuple[str, str, str, str]] = {
-    "Helvetica": ("/Helv", "/HeBo", "/HeOb", "/HeBO"),
-    "Arial": ("/Helv", "/HeBo", "/HeOb", "/HeBO"),
-    "Times New Roman": ("/TiRo", "/TiBo", "/TiIt", "/TiBI"),
-    "Courier New": ("/Cour", "/CoBo", "/CoOb", "/CoBO"),
+    "Helvetica": _HELVETICA,
+    "Arial": _HELVETICA,
+    "Times New Roman": _TIMES,
+    "Courier New": _COURIER,
 }
+# Extra UI families mapped to the closest base-14 slot: no font file is
+# embedded, so the exported PDF stays portable and license-clean.
+# Familles supplémentaires ramenées à la base 14 la plus proche : aucun
+# fichier de police incorporé, le PDF exporté reste portable et sans licence.
+for _sans in (
+    "Segoe UI",
+    "Verdana",
+    "Tahoma",
+    "Trebuchet MS",
+    "Lucida Sans Unicode",
+    "Comic Sans MS",
+):
+    PDF_FONT_NAMES[_sans] = _HELVETICA
+for _serif in ("Georgia", "Palatino Linotype", "Book Antiqua", "Garamond"):
+    PDF_FONT_NAMES[_serif] = _TIMES
+for _mono in ("Consolas", "Lucida Console"):
+    PDF_FONT_NAMES[_mono] = _COURIER
+del _sans, _serif, _mono
 """Base-14 PDF font names: (regular, bold, italic, bold-italic).
 
 Noms de polices PDF de base 14 : (régulier, gras, italique, gras-italique).
@@ -505,6 +541,7 @@ class PypdfiumPdfEngine:
         if not 0 <= position < len(session.annotations):
             return Err(f"invalid annotation position: {position}")
         session.annotations[position] = annotation
+        session.revision += 1
         return Ok(None)
 
     def remove_last_annotation(self, document_id: str) -> Result[None, str]:
@@ -517,6 +554,7 @@ class PypdfiumPdfEngine:
             return Err(f"unknown document: {document_id}")
         if session.annotations:
             session.annotations.pop()
+            session.revision += 1
         return Ok(None)
 
     def remove_annotation_at(
@@ -531,6 +569,7 @@ class PypdfiumPdfEngine:
             return Err(f"unknown document: {document_id}")
         if 0 <= position < len(session.annotations):
             session.annotations.pop(position)
+            session.revision += 1
         return Ok(None)
 
     def page_image(
@@ -605,6 +644,7 @@ class PypdfiumPdfEngine:
         if session is None:
             return Err(f"unknown document: {document_id}")
         session.annotations.append(annotation)
+        session.revision += 1
         return Ok(None)
 
     def annotations(self, document_id: str) -> tuple[Annotation, ...]:
