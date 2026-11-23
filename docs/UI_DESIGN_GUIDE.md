@@ -15,10 +15,23 @@ src/lestang_pdf_editor/app/
 └── ui/
     ├── common.py      # scaffold (fond dégradé bleu), barre d'app custom, snackbars, dialogues
     ├── home.py        # accueil : ouvrir un fichier, fichiers récents
-    ├── document_view.py  # éditeur : canevas centré/zoomable, éditeur de texte inline
-    │                     #   (_on_tap -> commit), raccourcis clavier (_on_keyboard),
-    │                     #   gestes souris (_on_pan_*), panneau annotations + OCR
-    ├── ribbon.py      # le ruban (groupes Fichier/Page/Insertion/Style/Image/Affichage/Édition)
+    ├── document_view.py  # éditeur : canevas centré/zoomable, zones de texte façon Word,
+    │                     #   raccourcis clavier (_on_keyboard), gestes souris (_on_pan_*),
+    │                     #   panneau annotations + OCR
+    ├── ribbon/        # le ruban : 1 répertoire par catégorie, 1 sous-répertoire par
+    │   │              #   groupe, 1 fichier par bouton, `_shared.py` = fonctions partagées
+    │   ├── _shared.py #   constantes + _ribbon_group/_color_palette/_set_style (RibbonContext)
+    │   ├── home/file/     #   Accueil > Fichier : open.py, export.py, export_flat.py,
+    │   │                  #   insert_pdf.py, properties.py  (+ __init__.py = build_group)
+    │   ├── page/organization/  # Page > Organisation : previous_page.py, next_page.py,
+    │   │                       #   rotate_left/right.py, delete_page.py, duplicate_page.py
+    │   ├── insert/annotations/ # Insertion > Annotations : add_text.py, rectangle.py,
+    │   │                       #   highlight_tool.py, stamp.py
+    │   ├── insert/font/        # Insertion > Police : family.py, size.py, bold.py, italic.py,
+    │   │                       #   underline.py, text_color.py, highlight_color.py, _shared.py
+    │   ├── image/processing/   # Image > Traitement : enhance.py, ocr.py
+    │   ├── view/zoom/          # Affichage > Zoom : zoom_in/out/reset.py, fit_width/page.py
+    │   └── edit/actions/       # Édition > Actions : undo.py, search.py
     └── settings_view.py  # réglages : nom/prénom, langue, DPI, thème, langues OCR, pages légales
 assets/i18n/{en,fr,es,zh}.json   # tous les libellés de l'UI (4 langues)
 ```
