@@ -6,6 +6,7 @@ latéral (annotations + OCR).
 
 import asyncio
 import json
+import threading
 from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Any
@@ -49,16 +50,33 @@ Icône par type d'annotation dans la liste du panneau latéral.
 def _schedule(
     page: ft.Page, handler: Callable[..., Coroutine[Any, Any, Any]], *args: Any
 ) -> None:
-    """Schedule an async UI task on the page loop (sync fallback if headless).
+    """Schedule an async UI task without ever blocking or crashing the UI.
 
-    Planifie une tâche UI async sur la boucle de la page (repli synchrone
-    si la page n'a pas de boucle, ex. tests sans affichage).
+    Planifie une tâche UI async : via page.run_task quand disponible, sinon
+    dans un thread dédié avec sa propre boucle (jamais asyncio.run() sur le
+    thread appelant s'il a déjà une boucle en cours), ou en synchrone si
+    aucun boucle ne tourne (tests sans affichage).
     """
     run_task = getattr(page, "run_task", None)
     if callable(run_task):
-        run_task(handler, *args)
-    else:
+        try:
+            run_task(handler, *args)
+            return
+        except Exception:
+            pass  # fall through to the thread-based fallback
+    try:
+        asyncio.get_running_loop()
+        has_loop = True
+    except RuntimeError:
+        has_loop = False
+    if not has_loop:
         asyncio.run(handler(*args))
+        return
+
+    def runner() -> None:
+        asyncio.run(handler(*args))
+
+    threading.Thread(target=runner, daemon=True).start()
 
 
 def _spawn(page: ft.Page, coro: Coroutine[Any, Any, Any]) -> None:
@@ -819,7 +837,12 @@ async def _open_async(state: AppState, path: str) -> None:
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(None, state.open_path, path)
     if isinstance(result, Ok):
-        build_document_view(state)
+        try:
+            build_document_view(state)
+        except Exception:
+            import traceback
+
+            show_message(state.page, "Error", traceback.format_exc())
     else:
         show_message(state.page, "Error", result.error)
 

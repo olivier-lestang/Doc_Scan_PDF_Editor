@@ -23,12 +23,22 @@ def main(page: ft.Page) -> None:
     """Flet entry point: apply the theme and build the home view.
 
     Point d'entrée Flet : applique le thème et construit la vue d'accueil.
+    Any startup error is shown on the page (never a blank window).
+    Toute erreur de démarrage est affichée sur la page (jamais une
+    fenêtre vide).
     """
-    page.theme = ft.Theme(color_scheme_seed=THEME_SEED, use_material3=True)
-    state = AppState()
-    state.page = page
-    state.apply_theme()
-    build_home_view(state)
+    try:
+        page.theme = ft.Theme(color_scheme_seed=THEME_SEED, use_material3=True)
+        state = AppState()
+        state.page = page
+        state.apply_theme()
+        build_home_view(state)
+    except Exception:
+        import traceback
+
+        page.controls.clear()
+        page.controls.append(ft.Text(traceback.format_exc(), color="#C62828", size=14))
+        page.update()
 
 
 def cli() -> None:
