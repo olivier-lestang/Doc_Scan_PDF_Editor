@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is also embedded in the app and shown on the "Release notes"
 ("Nouveautés") page.
 
+## [0.4.2] - 2026-11-23
+
+### Fixed
+
+- Thumbnails used `ImageFit.COVER` in a fixed 120x160 box, which cropped
+  non-A4 pages; they now use `ImageFit.CONTAIN` so the whole page is always
+  visible (letterboxed) regardless of page format.
+
 ## [0.4.1] - 2026-11-23
 
 ### Docs

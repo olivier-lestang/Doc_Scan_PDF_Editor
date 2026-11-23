@@ -440,7 +440,13 @@ def _refresh_all(
             image = ft.Image(
                 width=120,
                 height=160,
-                fit=ft.ImageFit.COVER,
+                # CONTAIN, not COVER: the whole page must stay visible in the
+                # fixed 120x160 thumbnail box whatever its format (A4, Letter,
+                # A3 landscape, ...); COVER would crop non-A4 pages.
+                # CONTAIN et non COVER : la page entière doit rester visible
+                # dans la vignette fixe 120x160 quel que soit son format (A4,
+                # Letter, A3 paysage...) ; COVER rognerait les pages non A4.
+                fit=ft.ImageFit.CONTAIN,
                 # Show the page number instead of the red error box while the
                 # thumbnail is not rendered yet (or if rendering failed).
                 # Affiche le numéro de page au lieu de l'erreur rouge tant que
