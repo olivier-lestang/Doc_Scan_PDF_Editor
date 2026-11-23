@@ -231,7 +231,7 @@ def build_document_view(state: AppState) -> None:
         state._render_generation += 1
         generation = state._render_generation
         _schedule(page, _fill_thumbnails, state, thumb_images, generation)
-        _schedule(page, _render_canvas, state, canvas_stack, generation)
+        _schedule(page, _render_canvas, state, canvas_stack, refresh, generation)
         page.update()
 
     def toggle_tool(tool: str) -> None:
@@ -288,8 +288,8 @@ def build_document_view(state: AppState) -> None:
         # with local_x/local_y (needed to place the text at the click point).
         on_tap_down=lambda e: _on_tap(state, e, canvas_stack, refresh),
         on_pan_start=lambda e: _on_pan_start(state, e),
-        on_pan_update=lambda e: _on_pan_update(state, e),
-        on_pan_end=lambda e: _on_pan_end(state, e),
+        on_pan_update=lambda e: _on_pan_update(state, e, canvas_stack, refresh),
+        on_pan_end=lambda e: _on_pan_end(state, e, canvas_stack, refresh),
         on_scroll=on_scroll,
     )
 
@@ -430,7 +430,10 @@ async def _fill_thumbnails(
 
 
 async def _render_canvas(
-    state: AppState, canvas_stack: ft.Stack, generation: int
+    state: AppState,
+    canvas_stack: ft.Stack,
+    refresh: Callable[[], None],
+    generation: int,
 ) -> None:
     """Render the current page canvas in the background.
 
@@ -463,7 +466,9 @@ async def _render_canvas(
             )
         )
         canvas_stack.controls.extend(
-            _annotation_overlays(state, canvas_width, canvas_height)
+            _annotation_overlays(
+                state, canvas_width, canvas_height, canvas_stack, refresh
+            )
         )
     page.update()
 
@@ -507,41 +512,71 @@ def _select_page(state: AppState, index: int) -> None:
 
 
 def _annotation_overlays(
-    state: AppState, width: int, height: int
+    state: AppState,
+    width: int,
+    height: int,
+    canvas_stack: ft.Stack,
+    refresh: Callable[[], None],
 ) -> list[ft.Container]:
     """Build overlay containers for the current page's annotations.
 
     Construit les conteneurs de superposition des annotations de la page
-    courante (infobulle auteur + horodatage au survol d'un texte).
+    courante. Les zones de texte sont interactives (Word-like) : clic =
+    sélection, glisser = déplacer, double-clic = rééditer, infobulle auteur
+    + horodatage au survol.
     """
     overlays: list[ft.Container] = []
-    for annotation in state.annotations_for_page(state.selected_page):
+    global_page = state._to_global(state.selected_page)
+    for position, annotation in enumerate(state.annotations()):
+        if isinstance(global_page, Err) or annotation.page_index != global_page.value:
+            continue
         x, y, w, h = annotation.rect
         if isinstance(annotation, TextAnnotation):
             tooltip = ""
             if annotation.author or annotation.created_at:
                 tooltip = f"{annotation.author}\n{annotation.created_at}"
+            selected = state._selected_annot == position
+            text_control = ft.Text(
+                annotation.content,
+                size=annotation.font_size_pt,
+                color=annotation.color,
+                weight=(ft.FontWeight.BOLD if annotation.bold else None),
+                italic=annotation.italic,
+                style=(
+                    ft.TextStyle(decoration=ft.TextDecoration.UNDERLINE)
+                    if annotation.underline
+                    else None
+                ),
+                bgcolor=(
+                    ft.Colors.with_opacity(0.45, annotation.highlight_color)
+                    if annotation.highlight_color
+                    else None
+                ),
+            )
+            gesture = ft.GestureDetector(
+                content=text_control,
+                on_tap=lambda _e, pos=position: _select_annotation(state, pos, refresh),
+                on_double_tap=lambda _e, pos=position: _start_edit(
+                    state, canvas_stack, refresh, pos
+                ),
+                on_pan_start=lambda e, pos=position: _move_start(state, e, pos),
+                on_pan_update=lambda e: _move_update(state, e),
+                on_pan_end=lambda e, pos=position: _move_end(
+                    state, e, pos, canvas_stack, refresh
+                ),
+            )
             overlays.append(
                 ft.Container(
-                    content=ft.Text(
-                        annotation.content,
-                        size=annotation.font_size_pt,
-                        color=annotation.color,
-                        weight=(ft.FontWeight.BOLD if annotation.bold else None),
-                        italic=annotation.italic,
-                        style=(
-                            ft.TextStyle(decoration=ft.TextDecoration.UNDERLINE)
-                            if annotation.underline
-                            else None
-                        ),
-                        bgcolor=(
-                            ft.Colors.with_opacity(0.45, annotation.highlight_color)
-                            if annotation.highlight_color
-                            else None
-                        ),
-                    ),
+                    content=gesture,
                     left=x * width,
                     top=y * height,
+                    width=max(40.0, w * width),
+                    height=max(24.0, h * height),
+                    border=(
+                        ft.border.all(1.5, "#1976D2")
+                        if selected
+                        else ft.border.all(1, "#90CAF9")
+                    ),
                     tooltip=tooltip or None,
                 )
             )
@@ -589,48 +624,113 @@ def _local_point(event: object) -> tuple[float, float]:
     return float(x or 0.0), float(y or 0.0)
 
 
-def _on_tap(
+def _canvas_dims(state: AppState, canvas_stack: ft.Stack) -> tuple[float, float]:
+    """Return the canvas size in pixels (stack size, or rendered page size).
+
+    Retourne la taille du canevas en pixels (taille du stack, ou taille de
+    la page rendue x zoom).
+    """
+    if canvas_stack.width and canvas_stack.height:
+        return float(canvas_stack.width), float(canvas_stack.height)
+    image = state.page_image(state.selected_page, state.display_dpi())
+    if isinstance(image, Err) or state.document is None:
+        return 1.0, 1.0
+    return image.value.width * state.zoom, image.value.height * state.zoom
+
+
+def _open_text_editor(
     state: AppState,
-    event: ft.TapEvent,
     canvas_stack: ft.Stack,
     refresh: Callable[[], None],
+    rect: tuple[float, float, float, float],
+    position: int | None = None,
 ) -> None:
-    """With the text tool, open an inline editor at the exact click point.
+    """Open an inline editor inside a text box at the given normalized rect.
 
-    Avec l'outil texte, ouvre un éditeur en ligne au point exact du clic.
+    Ouvre un éditeur en ligne dans une zone de texte au rectangle normalisé
+    donné (position = annotation existante en cas de réédition).
     """
-    if state.tool != "text" or state.document is None:
+    if state._editing is not None:
+        _commit_editing(state, refresh)
+    if state.document is None:
         return
     page = state.page
-    point_x, point_y = _local_point(event)
-    image = state.page_image(state.selected_page, state.display_dpi())
-    if isinstance(image, Err):
-        return
-    canvas_width = image.value.width * state.zoom
-    canvas_height = image.value.height * state.zoom
-    norm_x = point_x / canvas_width
-    norm_y = point_y / canvas_height
-    style = state.text_style
-
+    width, height = _canvas_dims(state, canvas_stack)
+    existing = state.annotations()[position] if position is not None else None
     field = ft.TextField(
-        label=state.t("doc.text_content"),
+        value=existing.content if isinstance(existing, TextAnnotation) else "",
         autofocus=True,
-        width=260,
-        on_submit=lambda _e: commit(),
+        multiline=True,
+        expand=True,
+        label=state.t("doc.text_content"),
     )
 
     def commit() -> None:
-        text = (field.value or "").strip()
-        if text:
+        _commit_editing(state, refresh)
+
+    editor = ft.Container(
+        content=ft.Row(
+            controls=[
+                ft.Container(field, expand=True),
+                ft.IconButton(
+                    icon=ft.Icons.CHECK,
+                    tooltip=state.t("doc.validate"),
+                    on_click=lambda _e: commit(),
+                ),
+            ],
+            spacing=2,
+        ),
+        left=rect[0] * width,
+        top=rect[1] * height,
+        width=max(120.0, rect[2] * width),
+        height=max(44.0, rect[3] * height),
+        bgcolor="#FFFFFF",
+        border=ft.border.all(1.5, "#1976D2"),
+        padding=2,
+    )
+    state._editing = {
+        "field": field,
+        "container": editor,
+        "rect": rect,
+        "position": position,
+        "canvas_stack": canvas_stack,
+    }
+    canvas_stack.controls.append(editor)
+    page.update()
+
+
+def _commit_editing(state: AppState, refresh: Callable[[], None]) -> None:
+    """Validate the open text box: keep the text, drop the editor overlay.
+
+    Valide la zone de texte ouverte : conserve le texte (nouvelle annotation
+    ou mise à jour de l'existante), retire l'éditeur.
+    """
+    from dataclasses import replace as dc_replace
+
+    editing = state._editing
+    if editing is None:
+        return
+    canvas_stack = editing["canvas_stack"]
+    text = (editing["field"].value or "").strip()
+    rect = editing["rect"]
+    position = editing["position"]
+    if text:
+        style = state.text_style
+        if position is not None:
+            old = state.annotations()[position]
+            updated = dc_replace(
+                old,
+                content=text,
+                rect=rect,
+                author=state.author_name(),
+                created_at=state.new_timestamp(),
+            )
+            state.replace_annotation(position, updated)
+        else:
             state.add_annotation(
                 TextAnnotation(
                     page_index=state.selected_page,
-                    rect=(
-                        norm_x,
-                        norm_y,
-                        260 / canvas_width,
-                        40 / canvas_height,
-                    ),
+                    rect=rect,
                     content=text,
                     font_family=style.font_family,
                     font_size_pt=style.font_size_pt,
@@ -643,79 +743,258 @@ def _on_tap(
                     created_at=state.new_timestamp(),
                 )
             )
-        if editor in canvas_stack.controls:
-            canvas_stack.controls.remove(editor)
-        refresh()
+    container = editing["container"]
+    if container in canvas_stack.controls:
+        canvas_stack.controls.remove(container)
+    state._editing = None
+    refresh()
 
-    editor = ft.Container(
-        content=ft.Row(
-            controls=[
-                field,
-                ft.IconButton(
-                    icon=ft.Icons.CHECK,
-                    tooltip=state.t("doc.validate"),
-                    on_click=lambda _e: commit(),
-                ),
-            ],
-            spacing=4,
-        ),
-        left=point_x,
-        top=point_y,
-        bgcolor="#FFFFFF",
-        border=ft.border.all(1, "#1976D2"),
-        padding=4,
-    )
-    canvas_stack.controls.append(editor)
-    page.update()
+
+def _cancel_editing(state: AppState, refresh: Callable[[], None]) -> None:
+    """Cancel the open editor: discard a new empty box, keep existing text.
+
+    Annule l'éditeur ouvert : abandonne une nouvelle zone vide, conserve le
+    texte d'une zone existante.
+    """
+    editing = state._editing
+    if editing is None:
+        return
+    canvas_stack = editing["canvas_stack"]
+    container = editing["container"]
+    if container in canvas_stack.controls:
+        canvas_stack.controls.remove(container)
+    state._editing = None
+    refresh()
+
+
+def _select_annotation(
+    state: AppState, position: int, refresh: Callable[[], None]
+) -> None:
+    """Select an annotation (single click on its overlay).
+
+    Sélectionne une annotation (clic simple sur sa superposition).
+    """
+    state._selected_annot = position
+    refresh()
+
+
+def _start_edit(
+    state: AppState,
+    canvas_stack: ft.Stack,
+    refresh: Callable[[], None],
+    position: int,
+) -> None:
+    """Enter edit mode on a text box (double click): pre-fill the editor.
+
+    Passe en édition une zone de texte (double-clic) : éditeur pré-rempli.
+    """
+    annotations = state.annotations()
+    if 0 <= position < len(annotations):
+        annotation = annotations[position]
+        if isinstance(annotation, TextAnnotation):
+            state._selected_annot = None
+            _open_text_editor(
+                state, canvas_stack, refresh, annotation.rect, position=position
+            )
+
+
+def _move_start(state: AppState, event: ft.DragStartEvent, position: int) -> None:
+    """Start moving the selected text box (drag on its overlay).
+
+    Démarre le déplacement de la zone de texte sélectionnée (glisser sur sa
+    superposition).
+    """
+    annotations = state.annotations()
+    if 0 <= position < len(annotations):
+        state._move = {
+            "position": position,
+            "start": _local_point(event),
+            "orig_rect": annotations[position].rect,
+        }
+        state._drag_start = None
+
+
+def _move_update(state: AppState, event: ft.DragUpdateEvent) -> None:
+    """Visually move the box while dragging (persist on pan end).
+
+    Déplace visuellement la zone pendant le glisser (persisté au relâchement).
+    """
+    move = state._move
+    if move is None:
+        return
+    move["current"] = _local_point(event)
+
+
+def _move_end(
+    state: AppState,
+    event: ft.DragEndEvent,
+    position: int,
+    canvas_stack: ft.Stack,
+    refresh: Callable[[], None],
+) -> None:
+    """Persist the moved text box rect (drag end on its overlay).
+
+    Persiste le rectangle déplacé de la zone de texte (fin du glisser).
+    """
+    from dataclasses import replace as dc_replace
+
+    move = state._move
+    state._move = None
+    if move is None or move["position"] != position:
+        return
+    start = move["start"]
+    end = move.get("current") or start
+    width, height = _canvas_dims(state, canvas_stack)
+    dx = (end[0] - start[0]) / width
+    dy = (end[1] - start[1]) / height
+    ox, oy, ow, oh = move["orig_rect"]
+    new_rect = (ox + dx, oy + dy, ow, oh)
+    annotations = state.annotations()
+    if 0 <= position < len(annotations):
+        state.replace_annotation(
+            position, dc_replace(annotations[position], rect=new_rect)
+        )
+    state._selected_annot = None
+    refresh()
+
+
+def _on_tap(
+    state: AppState,
+    event: ft.TapEvent,
+    canvas_stack: ft.Stack,
+    refresh: Callable[[], None],
+) -> None:
+    """Handle canvas clicks (commit open text box / open a new one).
+
+    Gère les clics sur le canevas (valide la zone ouverte / en ouvre une
+    nouvelle).
+
+    Comportement du clic : valide toute zone de texte ouverte (cliquer
+    ailleurs conserve le texte) ; avec l'outil texte, ouvre une zone de
+    taille par défaut au point cliqué.
+    """
+    if state.document is None:
+        return
+    if state._editing is not None:
+        _commit_editing(state, refresh)
+        if state.tool != "text":
+            return
+    if state.tool != "text":
+        if state._selected_annot is not None:
+            state._selected_annot = None
+            refresh()
+        return
+    point_x, point_y = _local_point(event)
+    width, height = _canvas_dims(state, canvas_stack)
+    norm_x = min(max(point_x / width, 0.0), 1.0)
+    norm_y = min(max(point_y / height, 0.0), 1.0)
+    # Default box size when the user just clicks (Word-like auto box):
+    # ~30% of the page width, ~5% of its height.
+    # Taille par défaut quand l'utilisateur clique simplement (zone auto
+    # style Word) : ~30 % de la largeur de page, ~5 % de sa hauteur.
+    rect = (norm_x, norm_y, 0.30, 0.05)
+    _open_text_editor(state, canvas_stack, refresh, rect)
 
 
 def _on_pan_start(state: AppState, event: ft.DragStartEvent) -> None:
-    """Remember the drag start point for rect/highlight tools.
+    """Remember the drag start point for drawing/moving tools.
 
-    Mémorise le point de début de glisser pour les outils cadre/surlignage.
+    Mémorise le point de début de glisser pour les outils de dessin.
     """
+    if state._move is not None:
+        return
     state._drag_start = _local_point(event)
     state._drag_last = state._drag_start
 
 
-def _on_pan_update(state: AppState, event: ft.DragUpdateEvent) -> None:
-    """Track the current drag position (DragEndEvent has no coordinates).
+def _on_pan_update(
+    state: AppState,
+    event: ft.DragUpdateEvent,
+    canvas_stack: ft.Stack,
+    refresh: Callable[[], None],
+) -> None:
+    """Track the drag and show a live shape preview (rect/highlight/text box).
 
-    Suit la position courante du glisser (DragEndEvent n'a pas de
-    coordonnées).
+    Suit le glisser et affiche un aperçu en direct de la forme dessinée
+    (cadre / surlignage / zone de texte).
     """
     state._drag_last = _local_point(event)
+    if state.tool not in ("rect", "highlight", "text") or state._drag_start is None:
+        return
+    if state._move is not None:
+        return
+    start = state._drag_start
+    end = state._drag_last
+    x = min(start[0], end[0])
+    y = min(start[1], end[1])
+    w = abs(end[0] - start[0])
+    h = abs(end[1] - start[1])
+    if w < 3 and h < 3:
+        return
+    color = "#1976D2" if state.tool != "highlight" else "#FFEB3B"
+    preview = state._drag_preview
+    if preview is None:
+        preview = ft.Container(border=ft.border.all(1.5, color))
+        state._drag_preview = preview
+        canvas_stack.controls.append(preview)
+    preview.left = x
+    preview.top = y
+    preview.width = w
+    preview.height = h
+    preview.bgcolor = (
+        ft.Colors.with_opacity(0.25, color) if state.tool == "highlight" else None
+    )
+    if state.page is not None:
+        state.page.update()
 
 
-def _on_pan_end(state: AppState, event: ft.DragEndEvent) -> None:
-    """Create a rect/highlight annotation from the drag gesture.
+def _on_pan_end(
+    state: AppState,
+    event: ft.DragEndEvent,
+    canvas_stack: ft.Stack,
+    refresh: Callable[[], None],
+) -> None:
+    """Create the annotation from the drag gesture (shape or text box).
 
-    Crée une annotation cadre/surlignage à partir du geste de glisser.
+    Crée l'annotation à partir du glisser (forme ou zone de texte dessinée).
+
+    Crée l'annotation à partir du glisser : forme (cadre/surlignage) ou une
+    zone de texte de la taille dessinée (outil texte).
     """
-    if state.tool not in ("rect", "highlight") or state.document is None:
+    if state._move is not None:
         return
-    start = getattr(state, "_drag_start", None)
-    if start is None:
+    preview = state._drag_preview
+    if preview is not None:
+        if preview in canvas_stack.controls:
+            canvas_stack.controls.remove(preview)
+        state._drag_preview = None
+    start = state._drag_start
+    end_point = state._drag_last
+    state._drag_start = None
+    state._drag_last = None
+    if start is None or state.document is None:
         return
-    end = getattr(state, "_drag_last", None) or start
-    image = state.page_image(state.selected_page, state.display_dpi())
-    if isinstance(image, Err):
-        return
-    width = image.value.width * state.zoom
-    height = image.value.height * state.zoom
+    if end_point is None:
+        end_point = start
+    width, height = _canvas_dims(state, canvas_stack)
     x1, y1 = start[0] / width, start[1] / height
-    x2, y2 = end[0] / width, end[1] / height
+    x2, y2 = end_point[0] / width, end_point[1] / height
     rect = (min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
-    if rect[2] < 0.005 or rect[3] < 0.005:
-        return
-    if state.tool == "rect":
-        state.add_annotation(
-            RectangleAnnotation(page_index=state.selected_page, rect=rect)
-        )
-    else:
-        state.add_annotation(
-            HighlightAnnotation(page_index=state.selected_page, rect=rect)
-        )
+    if state.tool == "text":
+        if rect[2] < 0.01 or rect[3] < 0.01:
+            rect = (min(x1, 1.0 - 0.30), min(y1, 1.0 - 0.05), 0.30, 0.05)
+        _open_text_editor(state, canvas_stack, refresh, rect)
+    elif state.tool in ("rect", "highlight"):
+        if rect[2] < 0.005 or rect[3] < 0.005:
+            return
+        if state.tool == "rect":
+            state.add_annotation(
+                RectangleAnnotation(page_index=state.selected_page, rect=rect)
+            )
+        else:
+            state.add_annotation(
+                HighlightAnnotation(page_index=state.selected_page, rect=rect)
+            )
 
 
 def _on_keyboard(
@@ -732,9 +1011,26 @@ def _on_keyboard(
     """
     state.ctrl_pressed = bool(event.ctrl or event.meta)
     focused = getattr(event, "control", None)
-    if isinstance(focused, ft.TextField):
-        return
     key = (event.key or "").lower()
+    if isinstance(focused, ft.TextField):
+        # While editing a text box: Ctrl+Enter validates (Enter = newline).
+        # Pendant l'édition d'une zone : Ctrl+Entrée valide (Entrée = saut de
+        # ligne).
+        if state._editing is not None and state.ctrl_pressed and key == "enter":
+            _commit_editing(state, refresh)
+        return
+    if key == "escape":
+        if state._editing is not None:
+            _cancel_editing(state, refresh)
+        elif state._selected_annot is not None:
+            state._selected_annot = None
+            refresh()
+        return
+    if key in ("delete", "backspace") and state._selected_annot is not None:
+        state.remove_annotation_at(state._selected_annot)
+        state._selected_annot = None
+        refresh()
+        return
     if state.ctrl_pressed:
         if key in ("o",):
             actions["open"]()

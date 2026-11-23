@@ -491,6 +491,22 @@ class PypdfiumPdfEngine:
             return {}
         return dict(session.metadata)
 
+    def replace_annotation(
+        self, document_id: str, position: int, annotation: Annotation
+    ) -> Result[None, str]:
+        """Replace the annotation at `position` (move/edit in place).
+
+        Remplace l'annotation à la position donnée (déplacement/édition sur
+        place, l'ordre de la liste est conservé).
+        """
+        session = self._session(document_id)
+        if session is None:
+            return Err(f"unknown document: {document_id}")
+        if not 0 <= position < len(session.annotations):
+            return Err(f"invalid annotation position: {position}")
+        session.annotations[position] = annotation
+        return Ok(None)
+
     def remove_last_annotation(self, document_id: str) -> Result[None, str]:
         """Undo: remove the most recently added annotation.
 

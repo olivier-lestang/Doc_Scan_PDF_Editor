@@ -194,6 +194,10 @@ class AppState:
         self._search_position = -1
         self._render_generation = 0
         self.ui_progress: Any = None  # ft.ProgressBar bound by the active view
+        self._editing: dict[str, Any] | None = None  # active inline text editor
+        self._selected_annot: int | None = None  # selected annotation position
+        self._drag_preview: Any = None  # live shape preview while dragging
+        self._move: dict[str, Any] | None = None  # annotation move drag state
         self.pending_export: dict[str, object] = {}
         self._listeners: list[Callable[[], None]] = []
 
@@ -790,6 +794,26 @@ class AppState:
             return global_index
         annotation = replace(annotation, page_index=global_index.value)
         result = self.pdf_engine.add_annotation(self.document.document_id, annotation)
+        self._notify()
+        return result
+
+    def replace_annotation(
+        self, position: int, annotation: Annotation
+    ) -> Result[None, str]:
+        """Replace the annotation at `position` (move/edit a text box in place).
+
+        Remplace l'annotation à la position donnée (déplacer/éditer une zone
+        de texte sur place, sans changer l'ordre de la liste).
+        """
+        if self.document is None:
+            return Err("no document open")
+        global_index = self._to_global(annotation.page_index)
+        if isinstance(global_index, Err):
+            return global_index
+        annotation = replace(annotation, page_index=global_index.value)
+        result = self.pdf_engine.replace_annotation(
+            self.document.document_id, position, annotation
+        )
         self._notify()
         return result
 
