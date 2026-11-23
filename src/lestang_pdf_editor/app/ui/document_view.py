@@ -391,32 +391,50 @@ def _refresh_all(
     _fill_thumbnails / _render_canvas, pour ne jamais bloquer l'UI même
     sur un gros PDF.
     """
-    thumbnails.controls.clear()
-    thumb_images.clear()
     total = state.page_count()
-    for index in range(total):
-        image = ft.Image(width=120, height=160, fit=ft.ImageFit.COVER)
-        thumb_images.append(image)
-        thumbnails.controls.append(
-            ft.GestureDetector(
-                content=ft.Stack(
-                    controls=[
-                        ft.Container(
-                            image,
-                            width=120,
-                            height=160,
-                            bgcolor="#ECEFF1",
-                            border_radius=4,
-                        ),
-                        ft.Container(
-                            ft.Text(str(index + 1), size=12, color="#607D8B"),
-                            alignment=ft.alignment.center,
-                        ),
-                    ]
-                ),
-                on_tap=lambda _e, i=index: _select_page(state, i),
+    # Rebuild the thumbnail strip only when the page count changes: recreating
+    # the Image controls on every refresh drops their "src", which makes the
+    # client flash the red "Image must have either src or src_base64" error
+    # until the async re-render fills them again.
+    # Ne reconstruit la bande de vignettes que si le nombre de pages change :
+    # recréer les contrôles Image à chaque rafraîchissement perd leur « src »,
+    # ce qui fait clignoter l'erreur rouge « Image must have either src or
+    # src_base64 » jusqu'à ce que le re-rendu asynchrone les remplisse.
+    if len(thumb_images) != total or not thumbnails.controls:
+        thumbnails.controls.clear()
+        thumb_images.clear()
+        for index in range(total):
+            image = ft.Image(
+                width=120,
+                height=160,
+                fit=ft.ImageFit.COVER,
+                # Show the page number instead of the red error box while the
+                # thumbnail is not rendered yet (or if rendering failed).
+                # Affiche le numéro de page au lieu de l'erreur rouge tant que
+                # la vignette n'est pas rendue (ou si le rendu a échoué).
+                error_content=ft.Text(str(index + 1), size=12, color="#607D8B"),
             )
-        )
+            thumb_images.append(image)
+            thumbnails.controls.append(
+                ft.GestureDetector(
+                    content=ft.Stack(
+                        controls=[
+                            ft.Container(
+                                image,
+                                width=120,
+                                height=160,
+                                bgcolor="#ECEFF1",
+                                border_radius=4,
+                            ),
+                            ft.Container(
+                                ft.Text(str(index + 1), size=12, color="#607D8B"),
+                                alignment=ft.alignment.center,
+                            ),
+                        ]
+                    ),
+                    on_tap=lambda _e, i=index: _select_page(state, i),
+                )
+            )
     annots_list.controls.clear()
     for position, annotation in enumerate(state.annotations()):
         annots_list.controls.append(_annotation_row(state, position, annotation))
@@ -464,6 +482,10 @@ async def _fill_thumbnails(
             return
         if isinstance(result, Ok):
             thumb_images[index].src = str(result.value)
+        else:
+            logger.warning(
+                "thumbnail render failed for page %d: %s", index, result.error
+            )
         if index % 4 == 3:
             page.update()
     page.update()

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is also embedded in the app and shown on the "Release notes"
 ("Nouveautés") page.
 
+## [0.3.2] - 2026-11-23
+
+### Fixed
+
+- Thumbnails no longer flash the red « Image must have either "src" or
+  "src_base64" » error on every click: the thumbnail strip is rebuilt only
+  when the page count changes (existing images keep their `src`), and a
+  missing/failed thumbnail now shows the page number (`error_content`)
+  instead of the error box. Thumbnail render failures are logged.
+- Verified on the wire (WebSocket probe): clicking a tool button sends a
+  fresh canvas GestureDetector with `mouseCursor: verticalText`, so the
+  I-beam cursor depends only on the client binary applying it.
+
 ## [0.3.1] - 2026-11-23
 
 ### Fixed
