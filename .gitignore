@@ -22,3 +22,6 @@ Thumbs.db
 
 # Local settings / user data (never commit)
 settings.json
+
+# Vibe sandbox artifacts
+.vibe/

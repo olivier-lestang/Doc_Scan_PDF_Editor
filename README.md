@@ -1,4 +1,4 @@
-# Doc Scan PDF Editor
+# Lestang PDF Editor
 
 Offline document scanner and PDF editor: scan, straighten, enhance, OCR
 (in several user-selectable languages), annotate (text with font/size,
@@ -20,7 +20,7 @@ reinstalling the downloaded installer.
 Python-first core (Python 3.12+), clean architecture, feature-first layout:
 
 ```
-src/docscanner/
+src/lestang_pdf_editor/
 ├── core/       # result types, settings model, feature flags, image buffer
 ├── domain/     # entities, ports (protocols), use-case services (pure Python)
 ├── data/       # platform implementations and offline stubs
@@ -47,7 +47,30 @@ See [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md). Short version:
 all code and comments in English, every docstring/comment followed by its
 French translation on the next line, lines wrapped at 88 columns, full type
 hints (`mypy --strict`), docstrings enforced by ruff (`D` rules), explicit
-verb-noun names.
+verb-noun names. Security and performance rules (on-device data, untrusted
+PDFs, threading/pdfium rules, known pitfalls) are in
+[docs/SECURITY_PERFORMANCE_PLAYBOOK.md](docs/SECURITY_PERFORMANCE_PLAYBOOK.md).
+
+## Run the desktop app (Windows / macOS / Linux)
+
+```bash
+uv sync
+# desktop runtime needs the pinned "desktop" group (Flutter binaries), installed from uv.lock:
+uv sync --frozen --group desktop  # exact versions from uv.lock (incl. desktop group)
+uv run flet run src/lestang_pdf_editor/app/main.py
+```
+
+Features in the desktop v1: open PDF (any supported version) or image,
+page browser, one-tap enhance (contrast/brightness/denoise/sharpen),
+on-device OCR with user-selectable languages (fra/eng/spa/chi_sim + more)
+and automatic language detection, annotations (text with font size,
+rectangles, highlights) exported as native PDF annotations, settings
+(UI language en/fr/es/zh, DPI auto or manual) persisted across updates,
+and the Legal pages (notice, open-source licenses, release notes, privacy).
+
+Packaging into installers (Windows .exe, macOS .dmg, Linux AppImage/.deb)
+is documented in [docs/PACKAGING.md](docs/PACKAGING.md); CI builds them on
+`v*` tags (`.github/workflows/release.yml`).
 
 ## Development
 
@@ -57,9 +80,26 @@ uv run ruff format      # format
 uv run ruff check       # lint (docstrings, annotations, line length)
 uv run mypy             # strict type check
 uv run pytest           # unit tests
+uv run python tool/generate_licenses.py   # regenerate assets/licenses.json
 ```
 
-CI (GitHub Actions) runs the same four commands on every push/PR.
+CI (GitHub Actions) runs the same checks on every push/PR.
+
+## Open the code in VS Code
+
+```powershell
+cd "$HOME\projects\Lestang_PDF_Editor"
+code .        # or File > Open Folder in VS Code
+```
+
+Recommended extensions: **Python**, **Pylance**, **Ruff** (all from the
+Marketplace). The `.vscode/settings.json` in the repo points the
+interpreter at `.venv` and enables pytest + Ruff. To launch the app from
+VS Code: install the pinned desktop group first
+(`uv sync --frozen --group desktop`), then press F5 with the
+« Lestang PDF Editor (flet run) » configuration (see
+`.vscode/launch.json`), or use the integrated terminal with
+`uv run flet run src/lestang_pdf_editor/app/main.py`.
 
 ## Licensing
 

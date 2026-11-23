@@ -1,0 +1,6 @@
+"""Offline document scanner and PDF editor.
+
+Numériseur de documents et éditeur de PDF hors ligne.
+"""
+
+__version__ = "0.1.0"

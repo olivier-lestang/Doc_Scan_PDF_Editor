@@ -19,7 +19,7 @@ documented code.
   well on mobile: camera preview, ML Kit / VisionKit document detection,
   thermal and battery status, secure keystore — exposed through platform
   channels.
-- Clean architecture, feature-first layout under `src/docscanner/`.
+- Clean architecture, feature-first layout under `src/lestang_pdf_editor/`.
 - Distribution: installers only for now (APK, .deb/.rpm/AppImage,
   .exe/.msix, .dmg/.pkg, .hap) plus app stores; **no in-app self-updater**;
   updates come from stores or reinstalling the installer.

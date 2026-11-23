@@ -12,21 +12,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install system libraries for OpenCV
+        run: sudo apt-get update && sudo apt-get install -y libgl1 libxcb1
+
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
+          ignore-nothing-to-cache: true
 
       - name: Install dependencies
+        if: hashFiles('pyproject.toml', 'uv.lock') != ''
         run: uv sync --frozen
 
       - name: Format check
+        if: hashFiles('pyproject.toml', 'uv.lock') != ''
         run: uv run ruff format --check
 
       - name: Lint
+        if: hashFiles('pyproject.toml', 'uv.lock') != ''
         run: uv run ruff check
 
       - name: Type check (strict)
+        if: hashFiles('pyproject.toml', 'uv.lock') != ''
         run: uv run mypy
 
       - name: Tests
-        run: uv run pytest --cov=docscanner --cov-report=term-missing
+        if: hashFiles('pyproject.toml', 'uv.lock') != ''
+        run: uv run pytest --cov=lestang_pdf_editor --cov-report=term-missing

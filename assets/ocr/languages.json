@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "languages": [
+    {
+      "code": "fra",
+      "names": { "en": "French", "fr": "Français", "es": "Francés", "zh": "法语" },
+      "engine_model": "tesseract/fra+onnx/fra",
+      "bundled": true,
+      "size_mb": 13.0
+    },
+    {
+      "code": "eng",
+      "names": { "en": "English", "fr": "Anglais", "es": "Inglés", "zh": "英语" },
+      "engine_model": "tesseract/eng+onnx/eng",
+      "bundled": true,
+      "size_mb": 4.0
+    },
+    {
+      "code": "spa",
+      "names": { "en": "Spanish", "fr": "Espagnol", "es": "Español", "zh": "西班牙语" },
+      "engine_model": "tesseract/spa+onnx/spa",
+      "bundled": true,
+      "size_mb": 13.0
+    },
+    {
+      "code": "chi_sim",
+      "names": { "en": "Chinese (Simplified)", "fr": "Chinois simplifié", "es": "Chino simplificado", "zh": "简体中文" },
+      "engine_model": "paddleocr/PP-OCRv4/chi_sim",
+      "bundled": true,
+      "size_mb": 10.0
+    },
+    {
+      "code": "deu",
+      "names": { "en": "German", "fr": "Allemand", "es": "Alemán", "zh": "德语" },
+      "engine_model": "tesseract/deu",
+      "bundled": false,
+      "size_mb": 16.0
+    },
+    {
+      "code": "por",
+      "names": { "en": "Portuguese", "fr": "Portugais", "es": "Portugués", "zh": "葡萄牙语" },
+      "engine_model": "tesseract/por",
+      "bundled": false,
+      "size_mb": 13.0
+    },
+    {
+      "code": "ita",
+      "names": { "en": "Italian", "fr": "Italien", "es": "Italiano", "zh": "意大利语" },
+      "engine_model": "tesseract/ita",
+      "bundled": false,
+      "size_mb": 13.0
+    }
+  ]
+}
