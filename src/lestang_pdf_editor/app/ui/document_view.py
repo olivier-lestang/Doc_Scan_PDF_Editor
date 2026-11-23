@@ -28,14 +28,19 @@ from lestang_pdf_editor.domain.entities.annotation import (
 
 TOOL_CURSORS = {
     "select": ft.MouseCursor.BASIC,
-    "text": ft.MouseCursor.VERTICAL_TEXT,
+    # TEXT (not VERTICAL_TEXT): on the web renderer, verticalText maps to the
+    # CSS "vertical-text" cursor (I-beam rotated 90°); TEXT maps to the
+    # upright I-beam (CSS "text" / IDC_IBEAM on Windows desktop).
+    # TEXT et non VERTICAL_TEXT : sur le rendu web, verticalText correspond au
+    # curseur CSS « vertical-text » (I-beam pivoté à 90°) ; TEXT donne le
+    # I-beam droit (CSS « text » / IDC_IBEAM sur Windows desktop).
+    "text": ft.MouseCursor.TEXT,
     "rect": ft.MouseCursor.CLICK,
     "highlight": ft.MouseCursor.CLICK,
 }
-"""Mouse cursor per tool (the text tool shows a text-insertion cursor).
+"""Mouse cursor per tool (the text tool shows an upright I-beam cursor).
 
-Curseur de souris par outil (l'outil texte affiche un curseur d'insertion
-de texte).
+Curseur de souris par outil (l'outil texte affiche un curseur I-beam droit).
 """
 
 ANNOTATION_ICONS = {

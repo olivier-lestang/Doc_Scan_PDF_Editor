@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is also embedded in the app and shown on the "Release notes"
 ("Nouveautés") page.
 
+## [0.3.3] - 2026-11-23
+
+### Fixed
+
+- Text tool cursor is now `MouseCursor.TEXT` (upright I-beam ⌶) instead of
+  `VERTICAL_TEXT`, which the web renderer maps to the CSS `vertical-text`
+  cursor (I-beam rotated 90°).
+
 ## [0.3.2] - 2026-11-23
 
 ### Fixed
