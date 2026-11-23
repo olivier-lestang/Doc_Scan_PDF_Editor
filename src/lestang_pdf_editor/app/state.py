@@ -123,7 +123,9 @@ def default_cache_dir() -> Path:
     Retourne le répertoire de cache utilisateur de l'OS pour les images
     de pages rendues.
     """
-    return Path(user_cache_dir("LestangPdfEditor", "Olivier Lestang"))
+    # appauthor=False: %LOCALAPPDATA%\LestangPdfEditor\Cache on Windows.
+    # appauthor=False : %LOCALAPPDATA%\LestangPdfEditor\Cache sous Windows.
+    return Path(user_cache_dir("LestangPdfEditor", appauthor=False))
 
 
 CACHE_MAX_FILES = 300
@@ -158,7 +160,7 @@ class AppState:
         catalogues.
         """
         base_config = config_dir or Path(
-            user_config_dir("LestangPdfEditor", "Olivier Lestang")
+            user_config_dir("LestangPdfEditor", appauthor=False)
         )
         self.cache_dir = cache_dir or default_cache_dir()
         self.assets_dir = assets_dir or default_assets_dir()

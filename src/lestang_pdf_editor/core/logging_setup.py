@@ -42,7 +42,11 @@ def default_log_dir() -> Path:
 
     Retourne le répertoire de logs utilisateur de l'OS pour l'appli.
     """
-    return Path(user_log_dir("LestangPdfEditor", "Olivier Lestang"))
+    # appauthor=False: no per-author folder, so on Windows the log dir is
+    # %LOCALAPPDATA%\LestangPdfEditor\Logs (app name first, no author dir).
+    # appauthor=False : pas de dossier par auteur, donc sous Windows le
+    # dossier de logs est %LOCALAPPDATA%\LestangPdfEditor\Logs.
+    return Path(user_log_dir("LestangPdfEditor", appauthor=False))
 
 
 def setup_logging(log_dir: Path | None = None) -> Path:

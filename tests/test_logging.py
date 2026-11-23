@@ -7,6 +7,7 @@ recherche.
 import logging
 from pathlib import Path
 
+import pytest
 from pypdf import PdfWriter
 
 from lestang_pdf_editor.app.state import AppState
@@ -55,3 +56,25 @@ def test_search_reports_progress_per_page(tmp_path: Path) -> None:
     matches = state.search("page", progress=lambda d, t: calls.append((d, t)))
     assert matches == [0, 1, 2]
     assert calls == [(1, 3), (2, 3), (3, 3)]
+
+
+def test_log_dir_has_no_author_segment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Log/cache/config dirs use the app name first, without an author dir.
+
+    Les dossiers log/cache/config commencent par le nom de l'appli, sans
+    dossier d'auteur (ex. %LOCALAPPDATA%/LestangPdfEditor/Logs sous Windows).
+    """
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    from lestang_pdf_editor.app.state import default_cache_dir
+    from lestang_pdf_editor.core.logging_setup import default_log_dir
+
+    log_dir = default_log_dir()
+    cache_dir = default_cache_dir()
+    assert "Olivier Lestang" not in str(log_dir)
+    assert "Olivier Lestang" not in str(cache_dir)
+    assert log_dir.parent.name == "LestangPdfEditor"
+    assert cache_dir.name == "LestangPdfEditor"
