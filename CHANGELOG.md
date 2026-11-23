@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is also embedded in the app and shown on the "Release notes"
 ("Nouveautés") page.
 
+## [0.3.4] - 2026-11-23
+
+### Changed
+
+- Tool cursors moved to a shared, reusable module:
+  `src/lestang_pdf_editor/app/ui/tool_cursors.py` (`TOOL_CURSORS`,
+  `cursor_for_tool()`, `apply_tool_cursor()`) — any view can map a tool to a
+  cursor and set it on a GestureDetector. New tools just add an entry there.
+- Drag preview (rectangle/highlight/text box) now updates at control level
+  (`preview.update()`), so drawing follows the mouse smoothly instead of
+  lagging behind (full `page.update()` per pan event).
+
+### Fixed
+
+- Space no longer changes page while typing in a text box: the keyboard is
+  owned by the inline editor while it is open (guard on `state._editing`,
+  since `KeyboardEvent.control` is not reliably the focused TextField on
+  desktop); only Ctrl+Enter (validate) and Escape (cancel) are handled then.
+
 ## [0.3.3] - 2026-11-23
 
 ### Fixed

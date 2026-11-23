@@ -17,6 +17,7 @@ import flet as ft
 from lestang_pdf_editor.app.state import AppState
 from lestang_pdf_editor.app.ui.common import page_scaffold, show_message, show_snackbar
 from lestang_pdf_editor.app.ui.ribbon import build_ribbon
+from lestang_pdf_editor.app.ui.tool_cursors import apply_tool_cursor, cursor_for_tool
 from lestang_pdf_editor.core.logging_setup import get_logger
 from lestang_pdf_editor.core.result import Err, Ok
 from lestang_pdf_editor.domain.entities.annotation import (
@@ -25,23 +26,6 @@ from lestang_pdf_editor.domain.entities.annotation import (
     RectangleAnnotation,
     TextAnnotation,
 )
-
-TOOL_CURSORS = {
-    "select": ft.MouseCursor.BASIC,
-    # TEXT (not VERTICAL_TEXT): on the web renderer, verticalText maps to the
-    # CSS "vertical-text" cursor (I-beam rotated 90°); TEXT maps to the
-    # upright I-beam (CSS "text" / IDC_IBEAM on Windows desktop).
-    # TEXT et non VERTICAL_TEXT : sur le rendu web, verticalText correspond au
-    # curseur CSS « vertical-text » (I-beam pivoté à 90°) ; TEXT donne le
-    # I-beam droit (CSS « text » / IDC_IBEAM sur Windows desktop).
-    "text": ft.MouseCursor.TEXT,
-    "rect": ft.MouseCursor.CLICK,
-    "highlight": ft.MouseCursor.CLICK,
-}
-"""Mouse cursor per tool (the text tool shows an upright I-beam cursor).
-
-Curseur de souris par outil (l'outil texte affiche un curseur I-beam droit).
-"""
 
 ANNOTATION_ICONS = {
     "text": ft.Icons.TEXT_FIELDS,
@@ -315,7 +299,7 @@ def build_document_view(state: AppState) -> None:
         """
         return ft.GestureDetector(
             content=canvas_stack,
-            mouse_cursor=TOOL_CURSORS[state.tool],
+            mouse_cursor=cursor_for_tool(state.tool),
             # on_tap receives the raw event; on_tap_down is wrapped in TapEvent
             # with local_x/local_y (needed to place the text at the click point).
             on_tap_down=lambda e: _on_tap(state, e, canvas_stack, refresh),
@@ -464,7 +448,7 @@ def _refresh_all(
                 "{tool}", state.t(f"doc.tool_{state.tool}")
             )
         zoom_label.value = f"{int(state.zoom * 100)}%"
-        gesture.mouse_cursor = TOOL_CURSORS[state.tool]
+        apply_tool_cursor(gesture, state.tool)
     return gesture
 
 
@@ -1014,7 +998,8 @@ def _on_pan_update(
         return
     color = "#1976D2" if state.tool != "highlight" else "#FFEB3B"
     preview = state._drag_preview
-    if preview is None:
+    just_created = preview is None
+    if just_created:
         preview = ft.Container(border=ft.border.all(1.5, color))
         state._drag_preview = preview
         canvas_stack.controls.append(preview)
@@ -1026,7 +1011,19 @@ def _on_pan_update(
         ft.Colors.with_opacity(0.25, color) if state.tool == "highlight" else None
     )
     if state.page is not None:
-        state.page.update()
+        # Control-level update once the preview exists: only its props go over
+        # the wire, which keeps the drag fluid (a full page.update() per pan
+        # event lags behind the mouse). The first time, the new control must
+        # be registered with a full page update.
+        # Mise à jour au niveau du contrôle une fois l'aperçu créé : seules ses
+        # propriétés partent sur le fil, ce qui rend le tracé fluide (un
+        # page.update() complet à chaque glisser est en retard sur la souris).
+        # La première fois, le nouveau contrôle doit être enregistré via un
+        # page.update() complet.
+        if just_created:
+            state.page.update()
+        else:
+            preview.update()
 
 
 def _on_pan_end(
@@ -1093,12 +1090,20 @@ def _on_keyboard(
     state.ctrl_pressed = bool(event.ctrl or event.meta)
     focused = getattr(event, "control", None)
     key = (event.key or "").lower()
-    if isinstance(focused, ft.TextField):
-        # While editing a text box: Ctrl+Enter validates (Enter = newline).
-        # Pendant l'édition d'une zone : Ctrl+Entrée valide (Entrée = saut de
-        # ligne).
-        if state._editing is not None and state.ctrl_pressed and key == "enter":
+    if state._editing is not None:
+        # While the inline text editor is open, the keyboard belongs to it:
+        # only Ctrl+Enter (validate) and Escape (cancel) are handled here, so
+        # Space/letters keep their normal meaning (no page change on Space).
+        # Tant que l'éditeur en ligne est ouvert, le clavier lui appartient :
+        # seuls Ctrl+Entrée (valider) et Échap (annuler) sont traités ici ;
+        # Espace et les lettres gardent leur sens normal (plus de changement
+        # de page avec Espace).
+        if state.ctrl_pressed and key == "enter":
             _commit_editing(state, refresh)
+        elif key == "escape":
+            _cancel_editing(state, refresh)
+        return
+    if isinstance(focused, ft.TextField):
         return
     if key == "escape":
         if state._editing is not None:
