@@ -61,6 +61,20 @@ Companion docs: [SECURITY.md](../SECURITY.md) (vulnerability reporting),
   Report vulnerabilities privately per [SECURITY.md](../SECURITY.md). Never
   log document content.
 
+### Logging & progress (diagnosing freezes)
+
+- `core/logging_setup.py` configures a rotating log file
+  (`app.log`, 2 MB x 3 backups) in the OS per-user log dir
+  (`platformdirs.user_log_dir`) plus the console. Logs contain paths,
+  sizes, page counts and **timings** (open, render per page, OCR, enhance,
+  search, export, startup steps, one INFO line per user action) — never
+  document content (no OCR text, no annotation text, no passwords).
+- The UI shows progress: a boot progress bar in `main()`, a progress bar on
+  the home view while opening a file, and a progress bar in the document
+  view's status bar during heavy actions (indeterminate for open/OCR/
+  enhance/export/insert, determinate page-by-page for full-document search
+  via the `progress` callback of `AppState.search`).
+
 ## 2. Performance model
 
 ### Threading / async model

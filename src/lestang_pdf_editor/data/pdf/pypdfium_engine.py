@@ -11,6 +11,7 @@ undo, and writes native PDF annotations (/FreeText, /Square, /Highlight,
 from __future__ import annotations
 
 import threading
+import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,6 +31,7 @@ from pypdf.generic import (
 )
 
 from lestang_pdf_editor.core.image_buffer import ImageBuffer
+from lestang_pdf_editor.core.logging_setup import get_logger
 from lestang_pdf_editor.core.result import Err, Ok, Result
 from lestang_pdf_editor.domain.entities.annotation import (
     Annotation,
@@ -204,6 +206,13 @@ def _annotation_to_pdf_dicts(
         msg = f"unsupported annotation: {annotation!r}"
         raise TypeError(msg)
     return [annot, *extra]
+
+
+logger = get_logger("pdf")
+"""Engine logger: render timings and pdfium errors.
+
+Logger du moteur : durées de rendu et erreurs pdfium.
+"""
 
 
 class PypdfiumPdfEngine:
@@ -534,10 +543,12 @@ class PypdfiumPdfEngine:
             # corrompent l'état de la bibliothèque (« Data format error »)
             # et peuvent bloquer sous Windows.
             with self._pdfium_lock:
+                render_started = time.perf_counter()
                 if session.pdf_doc is None:
                     import pypdfium2 as pdfium
 
                     session.pdf_doc = pdfium.PdfDocument(source_path)
+                    logger.debug("pdfium document loaded: %s", source_path)
                 page = session.pdf_doc[local_index]
                 bitmap = None
                 try:
@@ -546,6 +557,12 @@ class PypdfiumPdfEngine:
                         page.set_rotation(rotation)
                     bitmap = page.render(scale=dpi / 72.0)
                     pil = bitmap.to_pil()
+                    logger.debug(
+                        "pdfium render page %d @%d dpi in %.0f ms",
+                        page_index,
+                        dpi,
+                        (time.perf_counter() - render_started) * 1000,
+                    )
                     return Ok(_pil_to_buffer(pil))
                 finally:
                     # Close page/bitmap explicitly (never the shared document):
@@ -558,6 +575,7 @@ class PypdfiumPdfEngine:
                         bitmap.close()
                     page.close()
         except Exception as exc:
+            logger.warning("render page %d failed: %s", page_index, exc)
             return Err(f"render page {page_index} failed: {exc}")
 
     def add_annotation(

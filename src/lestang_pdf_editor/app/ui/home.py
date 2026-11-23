@@ -11,6 +11,13 @@ import flet as ft
 from lestang_pdf_editor import __version__
 from lestang_pdf_editor.app.state import AppState
 from lestang_pdf_editor.app.ui.common import page_scaffold
+from lestang_pdf_editor.core.logging_setup import get_logger
+
+logger = get_logger("ui")
+"""Home-view logger: one INFO line per user action.
+
+Logger de la vue d'accueil : une ligne INFO par action utilisateur.
+"""
 
 ALLOWED_EXTENSIONS = ["pdf", "png", "jpg", "jpeg", "tif", "tiff", "bmp"]
 """File extensions accepted by the open-file picker.
@@ -26,6 +33,9 @@ def build_home_view(state: AppState) -> None:
     """
     page = state.page
     page.title = state.t("app_name")
+
+    open_progress = ft.ProgressBar(width=240, value=None, visible=False)
+    state.ui_progress = open_progress
 
     file_picker = ft.FilePicker(on_result=lambda e: _on_pick(state, e))
     page.overlay.append(file_picker)
@@ -71,6 +81,7 @@ def build_home_view(state: AppState) -> None:
             title,
             subtitle,
             open_button,
+            open_progress,
             recent_panel,
             footer,
         ],
@@ -93,6 +104,7 @@ def _open_path(state: AppState, path: str) -> None:
     """
     from lestang_pdf_editor.app.ui.document_view import _open_async, _spawn
 
+    logger.info("user action: open %s", path)
     _spawn(state.page, _open_async(state, path))
 
 
