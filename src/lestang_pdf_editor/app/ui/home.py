@@ -8,7 +8,6 @@ from pathlib import Path
 
 import flet as ft
 
-from lestang_pdf_editor import __version__
 from lestang_pdf_editor.app.state import AppState
 from lestang_pdf_editor.app.ui.common import page_scaffold
 from lestang_pdf_editor.core.logging_setup import get_logger
@@ -74,8 +73,6 @@ def build_home_view(state: AppState) -> None:
         border_radius=8,
         visible=bool(recent_controls),
     )
-    footer = ft.Text(f"v{__version__} — MIT", size=11, color="#607D8B")
-
     body = ft.Column(
         controls=[
             title,
@@ -83,7 +80,6 @@ def build_home_view(state: AppState) -> None:
             open_button,
             open_progress,
             recent_panel,
-            footer,
         ],
         alignment=ft.MainAxisAlignment.CENTER,
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,

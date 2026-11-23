@@ -78,3 +78,7 @@ This file is also embedded in the app and shown on the "Release notes"
 - Shortcuts: Ctrl+O open, Ctrl+E export, Ctrl+Z undo, Ctrl+0 reset zoom,
   Ctrl +/-, Ctrl+wheel zoom; snackbar feedback.
 - Undo stack for annotations (Ctrl+Z / ribbon).
+- App version shown in a bottom status bar, right-aligned on every view
+  (home, document, settings); version is single-sourced in
+  `lestang_pdf_editor.__version__` and read dynamically by hatchling
+  (`[tool.hatch.version]`), so `pyproject.toml` no longer duplicates it.

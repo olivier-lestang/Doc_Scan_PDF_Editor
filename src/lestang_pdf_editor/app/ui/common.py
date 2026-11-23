@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 import flet as ft
 
+from lestang_pdf_editor import __version__
 from lestang_pdf_editor.app.state import AppState
 
 
@@ -79,15 +80,35 @@ Couleur basse du dégradé vertical bleu clair de l'arrière-plan.
 """
 
 
+def status_bar(state: AppState) -> ft.Control:
+    """Build the bottom status bar: app version + license, right-aligned.
+
+    Construit la barre de statut basse : version de l'app + licence,
+    alignées à droite (comme la barre de statut de Word / VS Code).
+    """
+    return ft.Container(
+        content=ft.Row(
+            controls=[
+                ft.Text(f"v{__version__} · MIT", size=11, color="#607D8B"),
+            ],
+            alignment=ft.MainAxisAlignment.END,
+        ),
+        padding=ft.padding.only(left=8, right=8, top=2, bottom=2),
+        bgcolor="#FFFFFF",
+        border=ft.border.only(top=ft.BorderSide(1, "#B0BEC5")),
+    )
+
+
 def page_scaffold(
     state: AppState,
     title: str,
     body: ft.Control,
     on_back: Callable[[], None] | None = None,
 ) -> ft.Control:
-    """Wrap a view in the light-blue vertical gradient + app bar.
+    """Wrap a view in the gradient + app bar + bottom status bar.
 
-    Enveloppe une vue dans le dégradé vertical bleu clair + la barre d'app.
+    Enveloppe une vue dans le dégradé vertical bleu clair + la barre d'app
+    + la barre de statut (version en bas à droite).
     """
     return ft.Container(
         expand=True,
@@ -97,7 +118,11 @@ def page_scaffold(
             colors=[GRADIENT_TOP, GRADIENT_BOTTOM],
         ),
         content=ft.Column(
-            controls=[app_bar(state, title, on_back), body],
+            controls=[
+                app_bar(state, title, on_back),
+                ft.Container(content=body, expand=True),
+                status_bar(state),
+            ],
             expand=True,
         ),
     )
