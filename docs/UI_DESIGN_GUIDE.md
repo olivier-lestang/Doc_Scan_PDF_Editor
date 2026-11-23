@@ -36,11 +36,15 @@ l'UI (`app/ui/`) ne parle au métier que via `AppState` / les ports de
   un nouveau `_ribbon_group("...", [...])` dans la `ft.Row`.
 - **Changer un libellé** : éditer la clé dans `assets/i18n/fr.json` (et
   en/es/zh — test d'égalité des clés dans `tests/test_app_state.py`).
-- **Changer le comportement de saisie de texte** : `ui/document_view.py`,
-  fonction `_on_tap` (création de l'éditeur inline au point cliqué) et sa
-  closure `commit()` (validation par Entrée ou bouton ✓). Les raccourcis
-  globaux sont dans `_on_keyboard` (ils sont ignorés quand le focus est dans
-  un champ texte).
+- **Changer le comportement des zones de texte (style Word)** :
+  `ui/document_view.py` — `_on_tap` (clic = zone de taille par défaut au
+  point cliqué), `_on_pan_*` (glisser = zone de la taille dessinée, avec
+  aperçu en direct), `_open_text_editor` / `_commit_editing` /
+  `_cancel_editing` (édition dans la zone ; validation par ✓, Ctrl+Entrée
+  ou clic à l'extérieur, Échap annule), `_select_annotation` / `_move_*` /
+  `_start_edit` (clic = sélectionner, glisser = déplacer, double-clic =
+  rééditer). Les raccourcis globaux sont dans `_on_keyboard` (ignorés quand
+  le focus est dans un champ texte, sauf Ctrl+Entrée).
 - **Changer la palette de couleurs du ruban** : `_color_palette(...)` dans
   `ui/ribbon.py` + les dictionnaires `TEXT_COLORS` / `HIGHLIGHT_COLORS`
   (pastilles de couleur, le hex n'est qu'en info-bulle).
