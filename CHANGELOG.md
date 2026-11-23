@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is also embedded in the app and shown on the "Release notes"
 ("Nouveautés") page.
 
+## [0.2.0] - 2026-11-23
+
+### Added
+
+- App version shown in a bottom status bar, right-aligned on every view;
+  version single-sourced in `lestang_pdf_editor.__version__` (dynamic via
+  `[tool.hatch.version]`).
+- Active drawing tool shown in the bottom status bar with a click/drag
+  hint (i18n en/fr/es/zh).
+
+### Fixed
+
+- Mouse cursor for the text/rectangle/highlight tools: the canvas
+  GestureDetector now sets `mouse_cursor` at construction (the Flutter
+  client only adds the MouseRegion wrapper when `mouseCursor` is non-null
+  at first build), so the I-beam/click cursor now actually appears.
+- Word-like text boxes, progress bars + rotating log file, per-button
+  ribbon package (`ribbon/<tab>/<group>/<button>.py`).
+
 ## [Unreleased]
 
 ### Changed
