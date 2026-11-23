@@ -3,4 +3,4 @@
 Numériseur de documents et éditeur de PDF hors ligne.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"

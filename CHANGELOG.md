@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is also embedded in the app and shown on the "Release notes"
 ("Nouveautés") page.
 
+## [0.3.1] - 2026-11-23
+
+### Fixed
+
+- A right-click (any non-left click) outside an open text box now validates
+  it, like a normal click outside (`on_secondary_tap`).
+- Tool change is logged with the cursor value sent to the client, so a
+  missing I-beam cursor can be diagnosed from the log file
+  (`%LOCALAPPDATA%\\LestangPdfEditor\\Logs\\app.log` on Windows).
+
+### Note
+
+- No TTF/OTF font embedding (explicit decision): PDF export keeps mapping
+  every font family to the PDF base-14, which needs no font file and no
+  license.
+
 ## [0.3.0] - 2026-11-23
 
 Version is now bumped automatically on every change (SemVer: MINOR for

@@ -231,6 +231,11 @@ def build_document_view(state: AppState) -> None:
             gesture = _make_gesture()
             canvas_row.controls.clear()
             canvas_row.controls.append(gesture)
+            logger.info(
+                "tool changed to %r, canvas cursor set to %r",
+                state.tool,
+                gesture.mouse_cursor,
+            )
         gesture = _refresh_all(
             state,
             thumbnails,
@@ -309,6 +314,7 @@ def build_document_view(state: AppState) -> None:
             # on_tap receives the raw event; on_tap_down is wrapped in TapEvent
             # with local_x/local_y (needed to place the text at the click point).
             on_tap_down=lambda e: _on_tap(state, e, canvas_stack, refresh),
+            on_secondary_tap=lambda e: _on_secondary_tap(state, refresh),
             on_pan_start=lambda e: _on_pan_start(state, e),
             on_pan_update=lambda e: _on_pan_update(state, e, canvas_stack, refresh),
             on_pan_end=lambda e: _on_pan_end(state, e, canvas_stack, refresh),
@@ -932,6 +938,16 @@ def _on_tap(
     # style Word) : ~30 % de la largeur de page, ~5 % de sa hauteur.
     rect = (norm_x, norm_y, 0.30, 0.05)
     _open_text_editor(state, canvas_stack, refresh, rect)
+
+
+def _on_secondary_tap(state: AppState, refresh: Callable[[], None]) -> None:
+    """Right-click (or any non-left click) outside the box: validate it.
+
+    Clic droit (ou tout clic non gauche) hors de la zone : valide la zone de
+    texte ouverte, comme un clic ordinaire à l'extérieur.
+    """
+    if state._editing is not None:
+        _commit_editing(state, refresh)
 
 
 def _on_pan_start(state: AppState, event: ft.DragStartEvent) -> None:
