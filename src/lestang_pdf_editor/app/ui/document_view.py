@@ -215,8 +215,22 @@ def build_document_view(state: AppState) -> None:
 
     thumb_images: list[ft.Image] = []
 
+    last_tool = state.tool
+
     def refresh() -> None:
-        nonlocal gesture
+        nonlocal gesture, last_tool
+        if state.tool != last_tool:
+            # Rebuild the detector on tool change so the client gets a fresh
+            # MouseRegion with the new cursor; a plain attribute update is
+            # not reliable for the conditional MouseRegion wrapper.
+            # Reconstruit le détecteur au changement d'outil pour que le
+            # client reçoive un MouseRegion neuf avec le bon curseur ; la
+            # simple mise à jour d'attribut n'est pas fiable pour le wrapper
+            # conditionnel MouseRegion.
+            last_tool = state.tool
+            gesture = _make_gesture()
+            canvas_row.controls.clear()
+            canvas_row.controls.append(gesture)
         gesture = _refresh_all(
             state,
             thumbnails,
@@ -282,23 +296,27 @@ def build_document_view(state: AppState) -> None:
     def on_scroll(event: ft.ScrollEvent) -> None:
         _on_scroll(state, event, refresh)
 
-    gesture = ft.GestureDetector(
-        content=canvas_stack,
-        # Set the cursor at construction time too: the Flutter client only
-        # wraps the detector in a MouseRegion if mouseCursor is non-null at
-        # first build, so it must never be None here.
-        # Pose aussi le curseur à la construction : le client Flutter ne
-        # masque le détecteur dans un MouseRegion que si mouseCursor est
-        # non nul au premier build ; il ne doit donc jamais être None ici.
-        mouse_cursor=TOOL_CURSORS[state.tool],
-        # on_tap receives the raw event; on_tap_down is wrapped in TapEvent
-        # with local_x/local_y (needed to place the text at the click point).
-        on_tap_down=lambda e: _on_tap(state, e, canvas_stack, refresh),
-        on_pan_start=lambda e: _on_pan_start(state, e),
-        on_pan_update=lambda e: _on_pan_update(state, e, canvas_stack, refresh),
-        on_pan_end=lambda e: _on_pan_end(state, e, canvas_stack, refresh),
-        on_scroll=on_scroll,
-    )
+    def _make_gesture() -> ft.GestureDetector:
+        """Create the canvas gesture detector with the active tool's cursor.
+
+        Crée le détecteur de gestes du canevas avec le curseur de l'outil
+        actif, posé dès la construction : le client Flutter n'ajoute le
+        wrapper MouseRegion que si mouseCursor est non nul au premier build.
+        """
+        return ft.GestureDetector(
+            content=canvas_stack,
+            mouse_cursor=TOOL_CURSORS[state.tool],
+            # on_tap receives the raw event; on_tap_down is wrapped in TapEvent
+            # with local_x/local_y (needed to place the text at the click point).
+            on_tap_down=lambda e: _on_tap(state, e, canvas_stack, refresh),
+            on_pan_start=lambda e: _on_pan_start(state, e),
+            on_pan_update=lambda e: _on_pan_update(state, e, canvas_stack, refresh),
+            on_pan_end=lambda e: _on_pan_end(state, e, canvas_stack, refresh),
+            on_scroll=on_scroll,
+        )
+
+    gesture = _make_gesture()
+    canvas_row = ft.Row(controls=[gesture], scroll=ft.ScrollMode.ALWAYS)
 
     page.on_keyboard_event = lambda e: _on_keyboard(state, e, refresh, actions)
 
@@ -311,7 +329,7 @@ def build_document_view(state: AppState) -> None:
         alignment=ft.alignment.center,
         content=ft.Column(
             controls=[
-                ft.Row(controls=[gesture], scroll=ft.ScrollMode.ALWAYS),
+                canvas_row,
             ],
             scroll=ft.ScrollMode.ALWAYS,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -397,6 +415,11 @@ def _refresh_all(
     for position, annotation in enumerate(state.annotations()):
         annots_list.controls.append(_annotation_row(state, position, annotation))
     canvas_stack.controls.clear()
+    editing = state._editing
+    if editing is not None:
+        # Keep the open text editor on top across rebuilds.
+        # Conserve l'éditeur de texte ouvert au-dessus lors des reconstructions.
+        canvas_stack.controls.append(editing["container"])
     if state.document is not None and gesture is not None:
         index = state.selected_page
         ocr_text.value = state.page_ocr.get(index, "")
@@ -481,6 +504,13 @@ async def _render_canvas(
                 state, canvas_width, canvas_height, canvas_stack, refresh
             )
         )
+    editing = state._editing
+    if editing is not None and editing["container"] not in canvas_stack.controls:
+        # Re-append the open text editor after the canvas rebuild, otherwise
+        # the async render would erase the box opened at pan end.
+        # Rajoute l'éditeur de texte ouvert après la reconstruction du canevas,
+        # sinon le rendu asynchrone effacerait la zone ouverte au relâchement.
+        canvas_stack.controls.append(editing["container"])
     page.update()
 
 
