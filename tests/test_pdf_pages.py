@@ -179,3 +179,25 @@ def test_export_watermark_password_and_metadata(tmp_path: Path) -> None:
     assert reader.metadata is not None
     assert reader.metadata.title == "Rapport"
     assert reader.metadata.author == "JD"
+
+
+def test_repeated_renders_do_not_leak_pdfium_handles(tmp_path: Path) -> None:
+    """Repeated renders explicitly close bitmap/page/document handles.
+
+    Les rendus répétés ferment explicitement les handles pdfium
+    (bitmap -> page -> document) : sinon les finaliseurs du GC appellent
+    FPDF_ClosePage sur un document déjà libéré (WinError 0xC000001D).
+    """
+    import gc
+
+    pdf = tmp_path / "doc.pdf"
+    make_pdf(pdf, pages=3)
+    engine = PypdfiumPdfEngine()
+    document = engine.open(str(pdf))
+    assert isinstance(document, Ok)
+    doc_id = document.value.document_id
+    for _ in range(10):
+        for index in range(3):
+            result = engine.page_image(doc_id, index, 72)
+            assert isinstance(result, Ok)
+        gc.collect()

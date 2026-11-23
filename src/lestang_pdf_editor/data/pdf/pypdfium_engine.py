@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from PIL import Image
@@ -516,14 +516,33 @@ class PypdfiumPdfEngine:
         import pypdfium2 as pdfium
 
         source_path, local_index = self._resolve(session, page_index)
-        pdf = pdfium.PdfDocument(source_path)
-        page = pdf[local_index]
-        rotation = session.rotations.get(page_index, 0)
-        if rotation:
-            page.set_rotation(rotation)
-        bitmap = page.render(scale=dpi / 72.0)
-        pil = bitmap.to_pil()
-        return Ok(_pil_to_buffer(pil))
+        pdf: Any = None
+        page: Any = None
+        bitmap: Any = None
+        try:
+            pdf = pdfium.PdfDocument(source_path)
+            page = pdf[local_index]
+            rotation = session.rotations.get(page_index, 0)
+            if rotation:
+                page.set_rotation(rotation)
+            bitmap = page.render(scale=dpi / 72.0)
+            pil = bitmap.to_pil()
+            return Ok(_pil_to_buffer(pil))
+        except Exception as exc:
+            return Err(f"render page {page_index} failed: {exc}")
+        finally:
+            # Explicit close in the right order (bitmap, page, document):
+            # otherwise the GC finalizers may call FPDF_ClosePage on an
+            # already-freed document handle (WinError 0xC000001D).
+            # Fermeture explicite dans le bon ordre (bitmap, page, document)
+            # : sinon les finaliseurs du GC peuvent appeler FPDF_ClosePage
+            # sur un handle déjà libéré (WinError 0xC000001D).
+            if bitmap is not None:
+                bitmap.close()
+            if page is not None:
+                page.close()
+            if pdf is not None:
+                pdf.close()
 
     def add_annotation(
         self, document_id: str, annotation: Annotation
