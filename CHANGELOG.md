@@ -25,6 +25,8 @@ This file is also embedded in the app and shown on the "Release notes"
   at first build), so the I-beam/click cursor now actually appears.
 - Word-like text boxes, progress bars + rotating log file, per-button
   ribbon package (`ribbon/<tab>/<group>/<button>.py`).
+- Drag-drawn text boxes no longer vanish on mouse release (the open
+  editor overlay is preserved across canvas rebuilds).
 
 ## [Unreleased]
 
